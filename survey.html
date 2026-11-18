@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#db0007">
+<link rel="icon" href="assets/logo.png">
+<title>Guest Feedback · MyMcDonald’s</title>
+<style>
+  :root { --yellow: #ffbc0d; --yellow-dk: #e5a400; --red: #db0007; --ink: #292929; --muted: #6f6f6f; --line: #e6e6e6; --panel: #f6f6f6; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body { font-family: "Speedee", "Helvetica Neue", Helvetica, Arial, sans-serif; background: var(--panel); color: var(--ink); }
+  button, textarea, input { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--red); color: #fff; border-bottom: 4px solid var(--yellow); }
+  header img { height: 34px; }
+  header b { font-size: 19px; }
+  main { max-width: 520px; margin: 0 auto; padding: 22px 18px 40px; }
+  h1 { font-size: clamp(26px, 6vw, 34px); margin: 4px 0 6px; letter-spacing: -.5px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 16px; line-height: 1.4; }
+  .panel { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.06); display: grid; gap: 22px; }
+  .qlabel, .q > label { display: block; font-weight: 700; font-size: 16px; margin-bottom: 10px; }
+  .code-input { width: 100%; font-size: 20px; padding: 14px 16px; border: 2px solid var(--line); border-radius: 10px; letter-spacing: 1px; font-family: "Courier New", Courier, monospace; }
+  .code-input:focus, textarea:focus { outline: none; border-color: var(--yellow); }
+  .stars { display: flex; gap: 6px; }
+  .stars button { flex: 1; min-height: 52px; border: 2px solid var(--line); border-radius: 10px; background: #fff; font-size: 26px; cursor: pointer; }
+  .stars button.on { border-color: var(--yellow); background: #fff6d6; }
+  .choices { display: grid; gap: 8px; }
+  .choices button { text-align: left; padding: 14px 16px; border: 2px solid var(--line); border-radius: 10px; background: #fff; font-size: 16px; cursor: pointer; }
+  .choices button.on { border-color: var(--red); background: #fdeeee; font-weight: 700; }
+  textarea { width: 100%; min-height: 110px; font-size: 16px; padding: 12px 14px; border: 2px solid var(--line); border-radius: 10px; resize: vertical; }
+  .counter { text-align: right; color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; margin-top: 18px; border: 0; border-radius: 8px;
+    background: var(--yellow); font-weight: 700; font-size: 19px; cursor: pointer; }
+  .btn:active { background: var(--yellow-dk); }
+  .btn.line { background: #fff; box-shadow: inset 0 0 0 2px var(--ink); }
+  .btn[disabled] { opacity: .5; pointer-events: none; }
+  .err { color: var(--red); font-weight: 700; min-height: 1.2em; }
+  .done { text-align: center; padding: 40px 10px; }
+  .done .big { font-size: 56px; }
+  .offer { background: #fff6d6; border-radius: 12px; padding: 14px; margin: 16px 0; font-size: 17px; }
+  .small { color: var(--muted); font-size: 13px; text-align: center; margin-top: 22px; }
+</style>
+</head>
+<body>
+<header><img src="assets/logo.png" alt=""><b>MyMcDonald’s</b></header>
+<main>
+  <!-- Step 1: receipt code -->
+  <section id="codeView">
+    <h1>How did we do?</h1>
+    <p class="sub">Enter the 26-digit survey code from the bottom of your receipt.</p>
+    <div class="panel">
+      <div>
+        <label class="qlabel" for="code">Survey code</label>
+        <input class="code-input" id="code" inputmode="numeric" autocomplete="off" placeholder="00000-00000-00000-00000-00000-0" maxlength="32">
+      </div>
+      <div class="err" id="codeErr"></div>
+    </div>
+    <button class="btn" id="codeBtn" type="button">Continue</button>
+    <p class="small">NP6 Training Simulator · feedback is stored for this training restaurant only.</p>
+  </section>
+
+  <!-- Step 2: survey -->
+  <section id="formView" hidden>
+    <h1>Tell us about your visit</h1>
+    <p class="sub">Survey code <b id="shownCode"></b></p>
+    <div class="panel">
+      <div>
+        <span class="qlabel">Overall, how was your visit?</span>
+        <div class="stars" data-key="overall"></div>
+      </div>
+      <div>
+        <span class="qlabel">How was the food?</span>
+        <div class="stars" data-key="food"></div>
+      </div>
+      <div>
+        <span class="qlabel">How was the service?</span>
+        <div class="stars" data-key="service"></div>
+      </div>
+      <div>
+        <span class="qlabel">How clean was the restaurant?</span>
+        <div class="stars" data-key="clean"></div>
+      </div>
+      <div>
+        <span class="qlabel">How fast was your order?</span>
+        <div class="choices" data-key="speed"></div>
+      </div>
+      <div>
+        <span class="qlabel">How did you order?</span>
+        <div class="choices" data-key="channel"></div>
+      </div>
+      <div>
+        <label for="comments">Anything else you’d like us to know?</label>
+        <textarea id="comments" maxlength="500" placeholder="Optional"></textarea>
+        <div class="counter"><span id="count">0</span>/500</div>
+      </div>
+      <div class="err" id="err"></div>
+    </div>
+    <button class="btn" id="submitBtn" type="button">Send Feedback</button>
+    <button class="btn line" id="backBtn" type="button">Use a Different Code</button>
+  </section>
+
+  <!-- Step 3: thanks -->
+  <section id="thanksView" class="done" hidden>
+    <div class="big">🍟</div>
+    <h1>Thanks!</h1>
+    <p class="sub">Your feedback has been received.</p>
+    <div class="offer" id="rewardBox" hidden></div>
+    <button class="btn line" id="again" type="button">Done</button>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var answers = {};
+  var code = '';
+  var choiceOpts = {
+    speed: ['Very fast', 'Fast', 'Average', 'Slow'],
+    channel: ['Kiosk', 'Counter', 'Drive-Thru', 'Mobile order']
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function digitsOf(s) { return String(s || '').replace(/\D/g, '').slice(0, 26); }
+  function grouped(d) { return d.match(/.{1,5}/g) ? d.match(/.{1,5}/g).join('-') : ''; }
+
+  // Codes are typed or pasted with the receipt's dashes; keep them in 5-digit groups as the user types
+  $('code').addEventListener('input', function () {
+    var d = digitsOf(this.value);
+    this.value = grouped(d);
+    $('codeErr').textContent = '';
+  });
+
+  // Step 1 → 2: the code must be the full 26 digits. The server checks it is real and unused on submit.
+  $('codeBtn').addEventListener('click', function () {
+    var d = digitsOf($('code').value);
+    if (d.length !== 26) { $('codeErr').textContent = 'The survey code has 26 digits. Check your receipt.'; return; }
+    code = d;
+    $('shownCode').textContent = grouped(d);
+    $('codeView').hidden = true;
+    $('formView').hidden = false;
+    window.scrollTo(0, 0);
+  });
+
+  $('backBtn').addEventListener('click', function () {
+    $('formView').hidden = true;
+    $('codeView').hidden = false;
+    $('err').textContent = '';
+    $('codeErr').textContent = '';
+    window.scrollTo(0, 0);
+  });
+
+  // Star ratings (1–5)
+  document.querySelectorAll('.stars').forEach(function (box) {
+    var key = box.getAttribute('data-key');
+    for (var i = 1; i <= 5; i++) {
+      (function (n) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = '★';
+        b.setAttribute('aria-label', n + (n > 1 ? ' stars' : ' star'));
+        b.addEventListener('click', function () {
+          answers[key] = n;
+          box.querySelectorAll('button').forEach(function (x, idx) { x.classList.toggle('on', idx < n); });
+          $('err').textContent = '';
+        });
+        box.appendChild(b);
+      })(i);
+    }
+  });
+
+  // Single-choice questions
+  Object.keys(choiceOpts).forEach(function (key) {
+    var box = document.querySelector('.choices[data-key="' + key + '"]');
+    choiceOpts[key].forEach(function (label) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.addEventListener('click', function () {
+        answers[key] = label;
+        box.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+        $('err').textContent = '';
+      });
+      box.appendChild(b);
+    });
+  });
+
+  $('comments').addEventListener('input', function () {
+    $('count').textContent = this.value.length;
+  });
+
+  function missing() {
+    var needed = ['overall', 'food', 'service', 'clean', 'speed', 'channel'];
+    for (var i = 0; i < needed.length; i++) {
+      if (!answers[needed[i]]) return 'Please answer every question before sending.';
+    }
+    return null;
+  }
+
+  $('submitBtn').addEventListener('click', function () {
+    var problem = missing();
+    if (problem) { $('err').textContent = problem; return; }
+
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    $('err').textContent = '';
+
+    fetch('/api/survey/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        answers: {
+          overall: answers.overall, food: answers.food, service: answers.service, clean: answers.clean,
+          speed: answers.speed, channel: answers.channel,
+          comments: $('comments').value.trim()
+        }
+      })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) { var e = new Error(j.error || 'Could not send. Please try again.'); e.status = r.status; throw e; }
+        return j;
+      });
+    }).then(function (j) {
+      if (j.reward) {
+        $('rewardBox').innerHTML = '<b>Your offer:</b> ' + j.reward.filter(Boolean).join(' — ');
+        $('rewardBox').hidden = false;
+      }
+      if (j.promo) {
+        $('rewardBox').innerHTML += '<br><b>Promo code:</b> <span style="letter-spacing:2px">' + j.promo.code + '</span><br><small>' + j.promo.label + ' at the kiosk or counter. Use it once.</small>';
+        $('rewardBox').hidden = false;
+      }
+      $('formView').hidden = true;
+      $('thanksView').hidden = false;
+      window.scrollTo(0, 0);
+    }).catch(function (e) {
+      // A used, unknown or expired code goes back to the code step; anything else stays on the survey
+      if (e.status === 404 || e.status === 409 || e.status === 410 || e.status === 400) {
+        // Bad code: back to the code step with the message there
+        $('formView').hidden = true;
+        $('codeView').hidden = false;
+        $('codeErr').textContent = e.message;
+        code = '';
+      } else {
+        $('err').textContent = e.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Send Feedback';
+    });
+  });
+
+  $('again').addEventListener('click', function () {
+    answers = {}; code = '';
+    document.querySelectorAll('.stars button, .choices button').forEach(function (b) { b.classList.remove('on'); });
+    $('comments').value = ''; $('count').textContent = '0';
+    $('code').value = ''; $('err').textContent = ''; $('codeErr').textContent = '';
+    $('submitBtn').disabled = false; $('submitBtn').textContent = 'Send Feedback';
+    $('rewardBox').hidden = true;
+    $('thanksView').hidden = true;
+    $('codeView').hidden = false;
+    window.scrollTo(0, 0);
+  });
+})();
+</script>
+</body>
+</html>

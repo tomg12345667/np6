@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Order Here">
+<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="assets/logo.png">
+<link rel="apple-touch-icon" href="assets/logo.png">
+<title>Order Here</title>
+<style>
+  /* Self-order kiosk in the style of the US McDonald's kiosks: attract screen, Eat In / Take Out with table service,
+     white menu with a category rail on the left, Make it a Meal -> Size -> Side -> Drink steps, - / + customizing,
+     a "complete your meal" suggestion, Review Order, and Pay at Counter with an order slip and 4-digit code.
+     The register brings the order up with Get Mobile Order (or Recall By Number) and that code. */
+  :root {
+    --s: 1;   /* device scale, set by fitDevice() */
+    --yellow: #ffbc0d; --yellow-dk: #e5a400; --red: #db0007; --ink: #292929; --muted: #6f6f6f; --line: #e6e6e6;
+    --panel: #f6f6f6; --white: #fff; --green: #1f7a35; --r: calc(12px * var(--s));
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: "Speedee", "Helvetica Neue", Helvetica, Arial, sans-serif; background: #fff; color: var(--ink); overflow: hidden;
+    -webkit-user-select: none; user-select: none; touch-action: manipulation; overscroll-behavior: none; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+  [hidden] { display: none !important; }
+  #app { position: fixed; inset: 0; transition: top .25s ease; }
+  body.reach #app { top: 38%; }           /* Accessibility: everything moves down within reach */
+  body.reach #app .attract-art { display: none; }
+  .view { position: absolute; inset: 0; display: flex; flex-direction: column; background: #fff;
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
+
+  /* buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: calc(8px * var(--s)); min-height: calc(56px * var(--s)); padding: 0 calc(28px * var(--s)); border-radius: calc(8px * var(--s));
+    font-weight: 700; font-size: calc(19px * var(--s)); background: var(--yellow); color: var(--ink); white-space: nowrap; }
+  .btn:active { background: var(--yellow-dk); }
+  .btn.line { background: #fff; box-shadow: inset 0 0 0 calc(2px * var(--s)) var(--ink); }
+  .btn.line:active { background: var(--panel); }
+  .btn.grey { background: var(--panel); }
+  .btn[disabled] { opacity: .4; pointer-events: none; }
+  .link { font-weight: 700; text-decoration: underline; text-underline-offset: calc(3px * var(--s)); font-size: calc(16px * var(--s)); }
+  .a11y { position: fixed; left: calc(14px * var(--s)); bottom: calc(calc(14px * var(--s)) + env(safe-area-inset-bottom, 0)); z-index: 30; width: calc(52px * var(--s)); height: calc(52px * var(--s)); border-radius: 50%;
+    background: #fff; box-shadow: 0 calc(2px * var(--s)) calc(10px * var(--s)) rgba(0,0,0,.25); font-size: calc(26px * var(--s)); display: flex; align-items: center; justify-content: center; }
+  body.reach .a11y { background: var(--yellow); }
+
+  /* ---- attract ---- */
+  #attract { background: #fff; }
+  .attract-art { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+  .slide { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: calc(30px * var(--s));
+    opacity: 0; transition: opacity .8s ease; background: var(--bg, var(--yellow)); color: var(--fg, var(--ink)); }
+  .slide.on { opacity: 1; }
+  .slide .big { font-size: clamp(calc(110px * var(--s)), 26vmin, calc(240px * var(--s))); line-height: 1; filter: drop-shadow(0 calc(12px * var(--s)) calc(18px * var(--s)) rgba(0,0,0,.25)); }
+  .slide .big img { height: clamp(calc(180px * var(--s)), 40vmin, calc(420px * var(--s))); width: auto; max-width: 80vw; object-fit: contain; }
+  .slide .tag { font-weight: 800; letter-spacing: calc(2px * var(--s)); font-size: clamp(calc(14px * var(--s)), 2.4vmin, calc(20px * var(--s))); margin-top: calc(24px * var(--s)); opacity: .85; }
+  .slide h2 { font-size: clamp(calc(34px * var(--s)), 7.5vmin, calc(72px * var(--s))); margin: calc(6px * var(--s)) 0 calc(8px * var(--s)); line-height: 1.02; letter-spacing: -1px; }
+  .slide p { font-size: clamp(calc(16px * var(--s)), 2.8vmin, calc(24px * var(--s))); margin: 0; opacity: .9; max-width: calc(640px * var(--s)); }
+  .touch { flex: none; display: flex; align-items: center; justify-content: space-between; gap: calc(16px * var(--s)); padding: calc(22px * var(--s)) calc(28px * var(--s)) calc(calc(22px * var(--s)) + env(safe-area-inset-bottom, 0)) calc(84px * var(--s)); background: #fff; }
+  .touch .go { flex: 1; display: flex; align-items: center; gap: calc(18px * var(--s)); }
+  .touch img { width: calc(64px * var(--s)); }
+  .touch b { font-size: clamp(calc(26px * var(--s)), 4.8vmin, calc(44px * var(--s))); }
+  .touch .pulse { animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  /* ---- eat in / take out ---- */
+  .ask { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(26px * var(--s)); padding: calc(24px * var(--s)); text-align: center; }
+  .ask h1 { font-size: clamp(calc(30px * var(--s)), 5.6vmin, calc(50px * var(--s))); margin: 0; letter-spacing: -.5px; }
+  .ask .sub { color: var(--muted); font-size: calc(18px * var(--s)); margin-top: -14px; }
+  .pick { display: flex; gap: calc(22px * var(--s)); flex-wrap: wrap; justify-content: center; }
+  .pick button { width: min(40vw, calc(300px * var(--s))); padding: calc(26px * var(--s)) calc(16px * var(--s)) calc(22px * var(--s)); border-radius: calc(16px * var(--s)); background: var(--panel); display: flex; flex-direction: column; align-items: center; gap: calc(14px * var(--s));
+    font-weight: 800; font-size: clamp(calc(20px * var(--s)), 3.4vmin, calc(28px * var(--s))); border: calc(3px * var(--s)) solid transparent; }
+  .pick button:active, .pick button.on { border-color: var(--yellow); background: #fff8e1; }
+  .pick .ic { font-size: clamp(calc(70px * var(--s)), 14vmin, calc(120px * var(--s))); line-height: 1; }
+  .pick small { font-weight: 400; font-size: calc(15px * var(--s)); color: var(--muted); }
+  .topbar { flex: none; display: flex; align-items: center; justify-content: space-between; padding: calc(14px * var(--s)) calc(20px * var(--s)); }
+  .topbar img { height: calc(42px * var(--s)); }
+  .tent { font-size: clamp(calc(64px * var(--s)), 12vmin, calc(110px * var(--s))); font-weight: 800; min-width: 3ch; padding: calc(6px * var(--s)) calc(24px * var(--s)); border-radius: calc(16px * var(--s)); background: var(--panel); letter-spacing: calc(6px * var(--s)); }
+  .keypad { display: grid; grid-template-columns: repeat(3, calc(84px * var(--s))); gap: calc(12px * var(--s)); }
+  .keypad button { height: calc(72px * var(--s)); border-radius: calc(12px * var(--s)); background: var(--panel); font-size: calc(30px * var(--s)); font-weight: 700; }
+  .keypad button:active { background: var(--yellow); }
+
+  /* ---- menu ---- */
+  .menu { flex: 1; min-height: 0; display: flex; }
+  .rail { width: calc(200px * var(--s)); flex: none; overflow-y: auto; border-right: 1px solid var(--line); padding: calc(10px * var(--s)) 0 calc(90px * var(--s)); background: #fff; }
+  .rail .logo { display: block; width: calc(58px * var(--s)); margin: calc(6px * var(--s)) auto calc(14px * var(--s)); }
+  .rail button { display: flex; flex-direction: column; align-items: center; gap: calc(6px * var(--s)); width: 100%; padding: calc(12px * var(--s)) calc(10px * var(--s)); text-align: center; font-weight: 700; font-size: calc(15px * var(--s)); line-height: 1.15; position: relative; }
+  .rail button .ic { width: calc(64px * var(--s)); height: calc(64px * var(--s)); border-radius: 50%; background: var(--panel); display: flex; align-items: center; justify-content: center; font-size: calc(36px * var(--s)); }
+  .rail button.on .ic { background: var(--yellow); }
+  .rail button.on::before { content: ''; position: absolute; left: 0; top: calc(14px * var(--s)); bottom: calc(14px * var(--s)); width: calc(5px * var(--s)); border-radius: 0 calc(4px * var(--s)) calc(4px * var(--s)) 0; background: var(--yellow); }
+  .list { flex: 1; min-width: 0; overflow-y: auto; padding: calc(24px * var(--s)) calc(24px * var(--s)) calc(130px * var(--s)); }
+  .list h1 { font-size: clamp(calc(28px * var(--s)), 4.4vmin, calc(40px * var(--s))); margin: 0 0 calc(4px * var(--s)); letter-spacing: -.5px; }
+  .list .blurb { color: var(--muted); margin: 0 0 calc(20px * var(--s)); font-size: calc(16px * var(--s)); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(180px * var(--s)), 1fr)); gap: calc(16px * var(--s)); }
+  .card { background: #fff; border-radius: var(--r); box-shadow: 0 1px calc(2px * var(--s)) rgba(0,0,0,.08), 0 calc(3px * var(--s)) calc(12px * var(--s)) rgba(0,0,0,.06); padding: calc(18px * var(--s)) calc(12px * var(--s)) calc(14px * var(--s)); display: flex; flex-direction: column;
+    align-items: center; text-align: center; gap: calc(8px * var(--s)); min-height: calc(230px * var(--s)); position: relative; }
+  .card:active { box-shadow: inset 0 0 0 calc(3px * var(--s)) var(--yellow); }
+  .card .art { width: calc(118px * var(--s)); height: calc(118px * var(--s)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(66px * var(--s)); background: var(--tint, var(--panel)); }
+  .card .nm { font-weight: 700; font-size: calc(17px * var(--s)); line-height: 1.2; flex: 1; display: flex; align-items: center; }
+  .card .pr { font-size: calc(16px * var(--s)); }
+  .card .pr small { color: var(--muted); }
+  .card .new { position: absolute; top: calc(10px * var(--s)); left: calc(10px * var(--s)); background: var(--red); color: #fff; font-weight: 800; font-size: calc(12px * var(--s)); letter-spacing: 1px; padding: calc(3px * var(--s)) calc(8px * var(--s)); border-radius: calc(4px * var(--s)); }
+  .card.out { pointer-events: none; }
+  .card.out .art, .card.out .nm { opacity: .35; }
+  .card.out .pr { color: var(--red); font-weight: 700; }
+
+  /* bottom order bar */
+  .bar { flex: none; display: flex; align-items: center; gap: calc(14px * var(--s)); padding: calc(12px * var(--s)) calc(20px * var(--s)) calc(calc(12px * var(--s)) + env(safe-area-inset-bottom, 0)) calc(80px * var(--s));
+    border-top: 1px solid var(--line); background: #fff; box-shadow: 0 -4px calc(14px * var(--s)) rgba(0,0,0,.06); }
+  .bar .info { flex: 1; min-width: 0; font-size: calc(15px * var(--s)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar .info b { display: block; color: var(--ink); font-size: calc(24px * var(--s)); }
+
+  /* ---- item builder ---- */
+  .build { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .bhead { flex: none; display: flex; align-items: center; gap: calc(16px * var(--s)); padding: calc(16px * var(--s)) calc(24px * var(--s)); border-bottom: 1px solid var(--line); }
+  .bhead .back { font-weight: 700; font-size: calc(17px * var(--s)); display: flex; align-items: center; gap: calc(6px * var(--s)); }
+  .bhead .art { width: calc(64px * var(--s)); height: calc(64px * var(--s)); border-radius: 50%; background: var(--tint, var(--panel)); display: flex; align-items: center; justify-content: center; font-size: calc(36px * var(--s)); flex: none; }
+  .bhead h2 { margin: 0; font-size: clamp(calc(20px * var(--s)), 3.2vmin, calc(28px * var(--s))); flex: 1; min-width: 0; }
+  .bhead .price { font-weight: 800; font-size: calc(22px * var(--s)); }
+  .steps { flex: none; display: flex; gap: calc(6px * var(--s)); padding: calc(12px * var(--s)) calc(24px * var(--s)) 0; }
+  .steps span { flex: 1; text-align: center; font-size: calc(13px * var(--s)); font-weight: 700; color: var(--muted); padding-bottom: calc(8px * var(--s)); border-bottom: calc(4px * var(--s)) solid var(--line); }
+  .steps span.done { color: var(--ink); border-color: var(--ink); }
+  .steps span.on { color: var(--ink); border-color: var(--yellow); }
+  .bbody { flex: 1; min-height: 0; overflow-y: auto; padding: calc(22px * var(--s)) calc(24px * var(--s)) calc(30px * var(--s)); }
+  .bbody h3 { font-size: clamp(calc(24px * var(--s)), 4vmin, calc(34px * var(--s))); margin: 0 0 calc(18px * var(--s)); letter-spacing: -.3px; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(170px * var(--s)), 1fr)); gap: calc(14px * var(--s)); }
+  .opt { background: #fff; border-radius: var(--r); padding: calc(16px * var(--s)) calc(10px * var(--s)) calc(14px * var(--s)); display: flex; flex-direction: column; align-items: center; gap: calc(8px * var(--s)); text-align: center;
+    box-shadow: inset 0 0 0 calc(2px * var(--s)) var(--line); font-weight: 700; font-size: calc(16px * var(--s)); }
+  .opt .art { width: calc(92px * var(--s)); height: calc(92px * var(--s)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: calc(50px * var(--s)); background: var(--tint, var(--panel)); }
+  .opt small { font-weight: 400; color: var(--muted); font-size: calc(14px * var(--s)); }
+  .opt.on { box-shadow: inset 0 0 0 calc(4px * var(--s)) var(--yellow); background: #fffbef; }
+  .opt[disabled] { opacity: .35; pointer-events: none; }
+  .opts.two { grid-template-columns: repeat(auto-fill, minmax(calc(240px * var(--s)), 1fr)); }
+  .opts.two .opt { padding: calc(26px * var(--s)) calc(14px * var(--s)) calc(22px * var(--s)); font-size: calc(20px * var(--s)); }
+  .opts.two .opt .art { width: calc(130px * var(--s)); height: calc(130px * var(--s)); font-size: calc(72px * var(--s)); }
+  .summary { display: flex; flex-direction: column; gap: calc(10px * var(--s)); max-width: calc(720px * var(--s)); }
+  .srow { display: flex; align-items: center; gap: calc(14px * var(--s)); background: var(--panel); border-radius: var(--r); padding: calc(12px * var(--s)) calc(16px * var(--s)); }
+  .srow .art { width: calc(52px * var(--s)); height: calc(52px * var(--s)); border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: calc(30px * var(--s)); flex: none; }
+  .srow .t { flex: 1; font-weight: 700; font-size: calc(17px * var(--s)); }
+  .srow .t small { display: block; font-weight: 400; color: var(--muted); font-size: calc(14px * var(--s)); margin-top: calc(2px * var(--s)); }
+  .mods { color: var(--muted); font-size: calc(15px * var(--s)); padding: calc(2px * var(--s)) calc(4px * var(--s)); }
+  .mods .no { color: var(--red); font-weight: 700; }
+  .mods .ex { color: var(--green); font-weight: 700; }
+  .ing { display: flex; align-items: center; gap: calc(14px * var(--s)); padding: calc(14px * var(--s)) calc(4px * var(--s)); border-bottom: 1px solid var(--line); max-width: calc(720px * var(--s)); }
+  .ing .t { flex: 1; font-weight: 700; font-size: calc(18px * var(--s)); }
+  .ing .t small { display: block; font-weight: 400; font-size: calc(14px * var(--s)); color: var(--muted); }
+  .ing .t small.no { color: var(--red); font-weight: 700; }
+  .ing .t small.ex { color: var(--green); font-weight: 700; }
+  .round { width: calc(48px * var(--s)); height: calc(48px * var(--s)); border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 calc(2px * var(--s)) var(--ink); font-size: calc(26px * var(--s)); font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .round[disabled] { opacity: .25; pointer-events: none; }
+  .bfoot { flex: none; display: flex; align-items: center; gap: calc(16px * var(--s)); padding: calc(14px * var(--s)) calc(24px * var(--s)) calc(calc(14px * var(--s)) + env(safe-area-inset-bottom, 0)) calc(80px * var(--s)); border-top: 1px solid var(--line); }
+  .qty { display: flex; align-items: center; gap: calc(14px * var(--s)); }
+  .qty span { font-size: calc(24px * var(--s)); font-weight: 800; min-width: calc(28px * var(--s)); text-align: center; }
+  .bfoot .grow { flex: 1; }
+
+  /* ---- suggestion ---- */
+  .sheet-bg { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
+  .sheet { background: #fff; width: min(calc(900px * var(--s)), 100%); border-radius: calc(20px * var(--s)) calc(20px * var(--s)) 0 0; padding: calc(24px * var(--s)) calc(24px * var(--s)) calc(calc(20px * var(--s)) + env(safe-area-inset-bottom, 0)); }
+  .sheet h3 { margin: 0 0 calc(6px * var(--s)); font-size: clamp(calc(24px * var(--s)), 4vmin, calc(32px * var(--s))); }
+  .sheet .sub { color: var(--muted); margin: 0 0 calc(18px * var(--s)); }
+  .sheet .opts { grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--s)), 1fr)); }
+  .sheet .end { display: flex; justify-content: center; margin-top: calc(18px * var(--s)); }
+
+  /* ---- review ---- */
+  .review { flex: 1; min-height: 0; overflow-y: auto; padding: calc(22px * var(--s)) calc(24px * var(--s)) calc(30px * var(--s)); }
+  .review .in { max-width: calc(820px * var(--s)); margin: 0 auto; }
+  .review h1 { font-size: clamp(calc(28px * var(--s)), 4.4vmin, calc(40px * var(--s))); margin: 0 0 calc(4px * var(--s)); }
+  .review .where { color: var(--muted); margin: 0 0 calc(18px * var(--s)); font-size: calc(16px * var(--s)); }
+  .rline { display: flex; gap: calc(16px * var(--s)); padding: calc(16px * var(--s)) 0; border-bottom: 1px solid var(--line); }
+  .rline .art { width: calc(70px * var(--s)); height: calc(70px * var(--s)); border-radius: 50%; background: var(--tint, var(--panel)); display: flex; align-items: center; justify-content: center; font-size: calc(38px * var(--s)); flex: none; }
+  .rline .t { flex: 1; min-width: 0; }
+  .rline .nm { font-weight: 700; font-size: calc(18px * var(--s)); }
+  .rline .acts { display: flex; gap: calc(20px * var(--s)); margin-top: calc(10px * var(--s)); }
+  .rline .pr { font-weight: 700; font-size: calc(18px * var(--s)); white-space: nowrap; }
+  .tot { margin-top: calc(18px * var(--s)); background: var(--panel); border-radius: var(--r); padding: calc(16px * var(--s)) calc(18px * var(--s)); }
+  .tot div { display: flex; justify-content: space-between; padding: calc(4px * var(--s)) 0; font-size: calc(17px * var(--s)); }
+  .tot .t { font-weight: 800; font-size: calc(24px * var(--s)); border-top: 1px solid #d9d9d9; margin-top: calc(8px * var(--s)); padding-top: calc(12px * var(--s)); }
+  .note { margin-top: calc(14px * var(--s)); display: flex; gap: calc(12px * var(--s)); align-items: center; padding: calc(14px * var(--s)) calc(16px * var(--s)); border-radius: var(--r); background: #fff8e1; font-size: calc(15px * var(--s)); }
+  .note .ic { font-size: calc(28px * var(--s)); }
+  .err { color: var(--red); font-weight: 700; margin-top: calc(12px * var(--s)); }
+  .mym { display: flex; align-items: center; gap: calc(14px * var(--s)); margin-top: calc(16px * var(--s)); padding: calc(14px * var(--s)) calc(16px * var(--s)); border-radius: var(--r); background: #fff; box-shadow: inset 0 0 0 calc(2px * var(--s)) var(--line); }
+  .mym.on { background: #fff8e1; box-shadow: inset 0 0 0 calc(2px * var(--s)) var(--yellow); }
+  .mym img { width: calc(40px * var(--s)); flex: none; }
+  .mym .t { flex: 1; font-size: calc(15px * var(--s)); color: var(--muted); }
+  .mym .t b { display: block; color: var(--ink); font-size: calc(18px * var(--s)); margin-bottom: calc(2px * var(--s)); }
+  .mym-acts { display: flex; align-items: center; gap: calc(16px * var(--s)); flex-wrap: wrap; justify-content: flex-end; }
+  .mymline .nm { color: var(--red); }
+  .mym-sheet { max-height: 92vh; display: flex; flex-direction: column; }
+  .mym-sheet .tent { margin: calc(4px * var(--s)) auto 0; text-align: center; min-width: 5ch; }
+  .mym-sheet .keypad { margin: calc(10px * var(--s)) auto 0; }
+  .mym-sheet .err { text-align: center; min-height: 1.3em; }
+  .mym-sheet .end { gap: calc(12px * var(--s)); }
+  .mym-scroll { overflow-y: auto; min-height: 0; }
+  .join-name { width: 100%; font: calc(22px * var(--s)) "Helvetica Neue", Arial, sans-serif; padding: calc(14px * var(--s)) calc(16px * var(--s)); border: calc(2px * var(--s)) solid var(--line); border-radius: calc(10px * var(--s)); margin-top: calc(4px * var(--s));
+    -webkit-user-select: text; user-select: text; }
+  .join-name:focus { outline: none; border-color: var(--yellow); }
+  .newcode { background: #fff8e1; border-radius: var(--r); padding: calc(14px * var(--s)) calc(16px * var(--s)); margin: calc(6px * var(--s)) 0 calc(14px * var(--s)); text-align: center; }
+  .newcode span { font-weight: 700; letter-spacing: 1px; }
+  .newcode .digits { display: flex; gap: calc(8px * var(--s)); justify-content: center; margin: calc(8px * var(--s)) 0; }
+  .newcode .digits b { width: calc(52px * var(--s)); height: calc(64px * var(--s)); border-radius: calc(10px * var(--s)); background: var(--ink); color: var(--yellow); display: flex; align-items: center; justify-content: center; font-size: calc(38px * var(--s)); }
+  .newcode small { color: var(--muted); }
+  .mym-scroll h4 { margin: calc(14px * var(--s)) 0 calc(10px * var(--s)); font-size: calc(18px * var(--s)); }
+
+  /* ---- pay at counter ---- */
+  .paid { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; padding: calc(26px * var(--s)) calc(24px * var(--s)) calc(30px * var(--s)); text-align: center; gap: calc(6px * var(--s)); }
+  .paid h1 { margin: 0; font-size: clamp(calc(30px * var(--s)), 5.4vmin, calc(48px * var(--s))); }
+  .paid .sub { color: var(--muted); font-size: clamp(calc(16px * var(--s)), 2.6vmin, calc(20px * var(--s))); max-width: calc(560px * var(--s)); margin: 0 0 calc(12px * var(--s)); }
+  .slip { width: min(calc(360px * var(--s)), 90vw); background: #fff; box-shadow: 0 calc(6px * var(--s)) calc(22px * var(--s)) rgba(0,0,0,.18); padding: calc(22px * var(--s)) calc(22px * var(--s)) calc(18px * var(--s)); font-family: "Courier New", Courier, monospace; color: #000; position: relative;
+    animation: print 1.1s ease-out both; }
+  .slip::after { content: ''; position: absolute; left: 0; right: 0; bottom: -10px; height: calc(10px * var(--s));
+    background: linear-gradient(-45deg, transparent calc(7px * var(--s)), #fff 0) 0 0 / calc(14px * var(--s)) calc(10px * var(--s)) repeat-x, linear-gradient(45deg, transparent calc(7px * var(--s)), #fff 0) 0 0 / calc(14px * var(--s)) calc(10px * var(--s)) repeat-x; }
+  @keyframes print { from { clip-path: inset(0 0 100% 0); transform: translateY(-20px); } to { clip-path: inset(0 0 -20px 0); transform: none; } }
+  .slip img { width: calc(40px * var(--s)); filter: brightness(0); }
+  .slip .pay { background: #000; color: #fff; font: 800 calc(20px * var(--s)) "Helvetica Neue", Arial, sans-serif; letter-spacing: 1px; padding: calc(8px * var(--s)) 0; margin: calc(10px * var(--s)) -4px; }
+  .slip .ord { font: 800 calc(15px * var(--s)) "Helvetica Neue", Arial, sans-serif; letter-spacing: calc(2px * var(--s)); margin-top: calc(6px * var(--s)); }
+  .slip .num { font: 800 calc(64px * var(--s))/1 "Helvetica Neue", Arial, sans-serif; margin: calc(4px * var(--s)) 0 calc(8px * var(--s)); }
+  .slip .row { display: flex; justify-content: space-between; font-size: calc(14px * var(--s)); padding: calc(2px * var(--s)) 0; }
+  .slip .code { font: 800 calc(15px * var(--s)) "Helvetica Neue", Arial, sans-serif; letter-spacing: calc(2px * var(--s)); margin-top: calc(12px * var(--s)); }
+  .slip .digits { display: flex; justify-content: center; gap: calc(8px * var(--s)); margin: calc(6px * var(--s)) 0 calc(10px * var(--s)); }
+  .slip .digits span { width: calc(54px * var(--s)); height: calc(66px * var(--s)); border: calc(3px * var(--s)) solid #000; border-radius: calc(8px * var(--s)); display: flex; align-items: center; justify-content: center; font: 800 calc(42px * var(--s)) "Helvetica Neue", Arial, sans-serif; }
+  .barcode { height: calc(54px * var(--s)); display: flex; justify-content: center; align-items: stretch; margin: calc(8px * var(--s)) 0 calc(4px * var(--s)); }
+  .barcode i { display: block; background: #000; }
+  .slip .small { font-size: calc(12px * var(--s)); }
+  .how { display: flex; gap: calc(12px * var(--s)); flex-wrap: wrap; justify-content: center; margin: calc(22px * var(--s)) 0 calc(10px * var(--s)); }
+  .how div { background: var(--panel); border-radius: var(--r); padding: calc(12px * var(--s)) calc(16px * var(--s)); font-size: calc(15px * var(--s)); max-width: calc(220px * var(--s)); text-align: left; }
+  .how b { display: block; font-size: calc(22px * var(--s)); }
+  .count { color: var(--muted); font-size: calc(14px * var(--s)); margin-top: calc(8px * var(--s)); }
+
+  .closed { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(10px * var(--s)); text-align: center; padding: calc(24px * var(--s)); }
+  .closed img { width: calc(110px * var(--s)); }
+  .closed h1 { margin: 0; font-size: clamp(calc(30px * var(--s)), 5vmin, calc(46px * var(--s))); }
+  .closed p { color: var(--muted); font-size: calc(18px * var(--s)); margin: 0; }
+
+  .modal-bg { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 40; padding: calc(20px * var(--s)); }
+  .modal { background: #fff; border-radius: calc(16px * var(--s)); padding: calc(28px * var(--s)); text-align: center; max-width: calc(440px * var(--s)); }
+  .modal h3 { margin: 0 0 calc(8px * var(--s)); font-size: calc(26px * var(--s)); }
+  .modal p { color: var(--muted); margin: 0 0 calc(20px * var(--s)); font-size: calc(17px * var(--s)); }
+  .modal .row { display: flex; gap: calc(12px * var(--s)); justify-content: center; flex-wrap: wrap; }
+
+  /* product photos: no coloured circle, the photo fills the space */
+  .art:has(img) { background: none !important; border-radius: 0 !important; }
+  .art img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+  .art img.logo { width: 86%; height: 86%; }
+  .card .art:has(img) { width: calc(150px * var(--s)); height: calc(130px * var(--s)); }
+  .opts.two .opt .art:has(img) { width: calc(170px * var(--s)); height: calc(150px * var(--s)); }
+
+  @media (max-width: 760px) {
+    .menu { flex-direction: column; }
+    .rail { width: auto; display: flex; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--line); padding: calc(4px * var(--s)) calc(6px * var(--s)); flex: none; }
+    .rail .logo { display: none; }
+    .rail button { width: auto; min-width: calc(92px * var(--s)); padding: calc(8px * var(--s)) calc(6px * var(--s)); font-size: calc(12px * var(--s)); }
+    .rail button .ic { width: calc(48px * var(--s)); height: calc(48px * var(--s)); font-size: calc(26px * var(--s)); }
+    .rail button.on::before { left: calc(14px * var(--s)); right: calc(14px * var(--s)); top: auto; bottom: 0; width: auto; height: calc(4px * var(--s)); border-radius: calc(4px * var(--s)) calc(4px * var(--s)) 0 0; }
+    .list { padding: calc(16px * var(--s)) calc(14px * var(--s)) calc(120px * var(--s)); }
+    .cards { grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--s)), 1fr)); gap: calc(12px * var(--s)); }
+    .card { min-height: calc(200px * var(--s)); }
+    .card .art { width: calc(92px * var(--s)); height: calc(92px * var(--s)); font-size: calc(50px * var(--s)); }
+    .opts { grid-template-columns: repeat(auto-fill, minmax(calc(140px * var(--s)), 1fr)); }
+    .bar, .bfoot { padding-left: calc(76px * var(--s)); }
+    .btn { min-height: calc(52px * var(--s)); padding: 0 calc(18px * var(--s)); font-size: calc(17px * var(--s)); }
+    .bhead { padding: calc(12px * var(--s)) calc(14px * var(--s)); }
+    .bbody, .review { padding: calc(16px * var(--s)) calc(14px * var(--s)) calc(24px * var(--s)); }
+    .steps { padding: calc(10px * var(--s)) calc(14px * var(--s)) 0; }
+  }
+
+  /* Phones turned sideways (short screens): compact header, narrow category rail, smaller bars and keypads */
+  @media (max-height: 520px) and (orientation: landscape) {
+    .menu { flex-direction: row; }
+    .rail { width: calc(118px * var(--s)); display: block; overflow-y: auto; overflow-x: hidden; border-right: 1px solid var(--line); border-bottom: 0; padding: 4px 0 80px; }
+    .rail .logo { display: none; }
+    .rail button { width: 100%; min-width: 0; padding: calc(6px * var(--s)) 4px; font-size: calc(12px * var(--s)); }
+    .rail button .ic { width: calc(40px * var(--s)); height: calc(40px * var(--s)); font-size: calc(22px * var(--s)); }
+    .rail button.on::before { left: 0; right: auto; top: 10px; bottom: 10px; width: 4px; height: auto; }
+    .list { padding: calc(10px * var(--s)) calc(12px * var(--s)) calc(90px * var(--s)); }
+    .list .blurb { display: none; }
+    .card { min-height: calc(160px * var(--s)); padding: calc(10px * var(--s)) 8px; }
+    .card .art { width: calc(80px * var(--s)); height: calc(80px * var(--s)); }
+    .ask { gap: calc(12px * var(--s)); padding: calc(10px * var(--s)); }
+    .topbar { padding: 6px 14px; }
+    .pick button { padding: calc(12px * var(--s)) 10px; }
+    .keypad { grid-template-columns: repeat(6, calc(56px * var(--s))); }
+    .keypad button { height: calc(46px * var(--s)); }
+    .touch { padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0)); }
+    .bhead { padding: 8px 14px; }
+    .bbody, .review { padding-top: calc(12px * var(--s)); }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+  // Sizes the kiosk for the device it's on. Every size in the styles is multiplied by --s:
+  //   phone upright ~0.85-1, phone sideways ~0.7-0.9, tablet ~0.9-1.15,
+  //   big upright kiosk screen (e.g. 1080 x 1920) ~1.3+, desktop / TV grows with the screen.
+  (function () {
+    function fitDevice() {
+      var w = window.innerWidth, h = window.innerHeight, short = Math.min(w, h), portrait = h >= w;
+      var touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+      var device, s;
+      if (short < 520 && !portrait) { device = 'phone-landscape'; s = Math.max(.7, Math.min(.9, h / 520)); }
+      else if (short < 600) { device = 'phone'; s = Math.max(.82, Math.min(1, w / 430)); }
+      else if (portrait && h >= 1500) { device = 'kiosk'; s = Math.max(1.1, Math.min(1.8, w / 830)); }
+      else if (short < 1100 && (touch || portrait)) { device = 'tablet'; s = Math.max(.9, Math.min(1.2, short / 820)); }
+      else { device = 'desktop'; s = Math.max(.9, Math.min(1.5, Math.min(w / 1280, h / 820))); }
+      document.documentElement.style.setProperty('--s', s.toFixed(3));
+      document.documentElement.setAttribute('data-device', device);
+    }
+    fitDevice();
+    window.addEventListener('resize', fitDevice);
+    window.addEventListener('orientationchange', function () { setTimeout(fitDevice, 150); });
+  })();
+</script>
+<button class="a11y" id="a11y" title="Accessibility: move the screen down" aria-label="Accessibility">♿</button>
+
+<script src="js/demo-data.js"></script>
+<script src="js/reload.js"></script>
+<script>
+(function () {
+  'use strict';
+  var MENU = window.NP6_DEMO, P = MENU.products, CH = MENU.choices, ADD = MENU.addables;
+  var store = { settings: { taxRate: 8, taxInclusive: false, taxLabel: 'Tax', currency: '$' }, prices: {}, outages: {}, locked: false };
+  var S = { view: 'attract', dine: null, table: null, cart: [], cat: 'featured', build: null, suggested: false };
+  var SIZE = { S: 'Small', M: 'Medium', L: 'Large' };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function money(c) { return (store.settings.currency || '$') + (c / 100).toFixed(2); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  // ---------------------------------------------------------------- menu data
+  function screenCodes(no) {
+    var s = MENU.screens.filter(function (x) { return x.number === no; })[0], out = [];
+    if (s) s.buttons.forEach(function (b) { if (b.productCode > 0 && out.indexOf(b.productCode) < 0) out.push(b.productCode); });
+    return out;
+  }
+  var NEW = [120, 1022, 530, 531, 532, 533, 534, 535, 536, 537, 207, 417, 217, 419, 529, 538, 523, 524, 525];
+  var CATS = [
+    { id: 'featured', title: 'Featured', ic: '⭐', blurb: 'New and limited-time favorites', codes: [120, 217, 530, 531, 532, 533, 534, 535, 529, 536, 207, 404, 1030, 1031] },
+    { id: 'meals', title: 'Meals', ic: '🍔', blurb: 'Your favorite with fries and a drink', codes: screenCodes(1).filter(function (c) { return c < 1030; }) },
+    { id: 'mcvalue', title: 'McValue', ic: '💲', blurb: 'Meal Deals and the Daily Double: the $5 Meal Deal comes with 4 Pc McNuggets, small fries and a small drink', codes: [1030, 1031, 1211, 1212, 115] },
+    { id: 'burgers', title: 'Burgers', ic: '🍔', blurb: '100% beef, cooked fresh', codes: screenCodes(2) },
+    { id: 'chicken', title: 'Chicken & McNuggets', ic: '🍗', blurb: 'McCrispy, Snack Wraps, McNuggets and Strips', codes: screenCodes(3) },
+    { id: 'sides', title: 'Fries & Sides', ic: '🍟', blurb: 'World Famous Fries, sides and dips', codes: screenCodes(4) },
+    { id: 'happy', title: 'Happy Meal', ic: '🎁', blurb: 'Kids fries, apple slices, a drink and a toy', codes: screenCodes(9) },
+    { id: 'breakfast', title: 'Breakfast', ic: '🍳', blurb: 'Served until 10:30 AM', codes: screenCodes(7) },
+    { id: 'mccafe', title: 'McCafé', ic: '☕', blurb: 'Coffee, lattes, frappés and more', codes: screenCodes(8) },
+    { id: 'sweets', title: 'Sweets & Treats', ic: '🍦', blurb: 'McFlurry, sundaes, pies and cookies', codes: screenCodes(6) },
+    { id: 'drinks', title: 'Beverages', ic: '🥤', blurb: 'Soft drinks, Refreshers, crafted sodas and shakes', codes: screenCodes(5) }
+  ];
+  var TINT = { meals: '#ffeab0', burgers: '#fff1c9', chicken: '#ffe4c4', sides: '#fff5d1', sauces: '#fff5d1', drinks: '#e0f0ff', desserts: '#ffe3ee',
+    breakfast: '#ffe9cf', bfastmeal: '#ffe9cf', coffee: '#efe4d6', kids: '#ffdede' };
+  // Product pictures from fetch-images.py; items without one keep their emoji
+  var PHOTOS = {}, LOGOS = {};
+  function art(p) {
+    if (p.code && PHOTOS[p.code]) return '<img class="' + (LOGOS[p.code] ? 'logo' : 'photo') + '" src="assets/products/' + p.code + '.png" alt="" draggable="false">';
+    var n = p.name;
+    if (/Happy Meal/.test(n)) return '🎁';
+    if (/Nugget|Strip|McChicken|McCrispy|Wrap/.test(n)) return '🍗';
+    if (/Fries/.test(n)) return '🍟';
+    if (/Apple Slices/.test(n)) return '🍎';
+    if (/Hash Brown/.test(n)) return '🥔';
+    if (/Hotcake/.test(n)) return '🥞';
+    if (/McMuffin|Biscuit|McGriddle|Burrito|Breakfast/.test(n)) return '🍳';
+    if (/Shake|McFlurry|Sundae|Cone/.test(n)) return '🍦';
+    if (/Pie/.test(n)) return '🥧';
+    if (/Cookie/.test(n)) return '🍪';
+    if (/Red Bull/.test(n)) return '⚡';
+    if (/Refresher|Dream|Blast|Juice/.test(n)) return '🧃';
+    if (/Water/.test(n)) return '💧';
+    if (/Milk/.test(n)) return '🥛';
+    if (/Filet/.test(n)) return '🐟';
+    if (p.cat === 'sauces') return '🥫';
+    if (p.cat === 'coffee') return /Iced|Frapp/.test(n) ? '🧋' : '☕';
+    if (p.cat === 'drinks') return '🥤';
+    if (p.cat === 'kids') return '🧸';
+    return '🍔';
+  }
+  function tint(p) { return TINT[p.cat] || '#f6f6f6'; }
+  // Only what the restaurant is serving right now (a manager switches Breakfast / Lunch & Dinner on the register)
+  function served(code) { var p = P[code]; return p && (!p.day || !store.daypart || store.daypart === 'all' || p.day === store.daypart); }
+  function catCodes(c) { return c.codes.filter(served); }
+  function liveCats() { return CATS.filter(function (c) { return catCodes(c).length; }); }
+  function mealFor(code) {
+    var c = Object.keys(P).filter(function (k) { var m = P[k].meal; return m && m.main === code && !m.fixedSize; })[0];
+    return c ? +c : null;
+  }
+
+  // Store price changes, sold-out items and lockdown come from the register database (public, read-only)
+  function applyPrices() {
+    Object.keys(P).forEach(function (c) {
+      var p = P[c];
+      if (!p._base) p._base = { price: p.price, sizes: p.sizes ? Object.assign({}, p.sizes) : null };
+      p.price = p._base.price;
+      if (p._base.sizes) p.sizes = Object.assign({}, p._base.sizes);
+      var o = store.prices[c];
+      if (!o) return;
+      if (o.price !== undefined) p.price = o.price;
+      if (o.sizes && p.sizes) Object.keys(o.sizes).forEach(function (z) { p.sizes[z] = o.sizes[z]; if (z === 'M') p.price = o.sizes[z]; });
+    });
+  }
+  function loadStore() {
+    if (location.protocol.indexOf('http') !== 0) return;
+    fetch('/api/col/store', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) {
+      store.settings = Object.assign({ taxRate: 8, taxInclusive: false, taxLabel: 'Tax', currency: '$' }, d.settings || {});
+      store.prices = (d.prices && d.prices.codes) || {};
+      store.outages = {};
+      ((d.outages && d.outages.codes) || []).forEach(function (c) { store.outages[c] = true; });
+      var was = store.locked, sig = JSON.stringify([store.prices, store.outages, store.settings, (d.daypart && d.daypart.mode) || 'all']);
+      store.locked = !!(d.lockdown && d.lockdown.locked);
+      store.daypart = (d.daypart && d.daypart.mode) || 'all';
+      applyPrices();
+      if (store.locked !== was) { if (store.locked) reset(); else render(); }
+      else if (S.view === 'menu' && sig !== store.sig && !document.querySelector('.sheet-bg, #modal')) render();  // only when prices or outages changed
+      store.sig = sig;
+    }).catch(function () {});
+  }
+
+  // ---------------------------------------------------------------- pricing (same rules as the register)
+  function unit(it) {
+    var p = P[it.code], u;
+    if (p.meal) {
+      u = p.price + (!p.meal.fixedSize && it.size === 'L' ? (p.meal.large || 0) : 0);
+      var side = (CH.sides[p.meal.sides] || []).filter(function (c) { return c.code === it.side; })[0];
+      var drink = (CH.drinks[p.meal.drinks] || []).filter(function (c) { return c.code === it.drink; })[0];
+      u += (side && side.up || 0) + (drink && drink.up || 0);
+    } else u = p.sizes ? (p.sizes[it.size] || p.price) : p.price;
+    (it.extra || []).forEach(function (g) { u += ADD[g] || 0; });
+    return u;
+  }
+  // The MyMcDonald's deal or reward the customer picked, worked out the way the register will:
+  // free / set-price items are added, $ and % offers come off. Conditions are checked so the customer knows.
+  function offerInfo() {
+    if (!S.member || !S.offer) return null;
+    var list = S.offer.type === 'reward' ? MENU.rewards : MENU.deals;
+    var o = (list || []).filter(function (x) { return x.id === S.offer.id; })[0];
+    if (!o) return null;
+    var food = S.cart.reduce(function (a, it) { return a + unit(it) * it.qty; }, 0), why = null, amount = 0, item = null;
+    if (o.minSpend && food < o.minSpend) why = 'Spend ' + money(o.minSpend) + ' or more to use this.';
+    if (o.needCat && !S.cart.some(function (it) { return P[it.code] && P[it.code].cat === o.needCat; }))
+      why = 'Add ' + ({ meals: 'an Extra Value Meal', coffee: 'a McCafé drink' }[o.needCat] || 'a qualifying item') + ' to use this.';
+    if (o.needCode && !S.cart.some(function (it) { return it.code === o.needCode; })) why = 'Add ' + P[o.needCode].name + ' to use this.';
+    if (S.offer.type === 'reward' && S.member.points < o.points) why = 'Not enough points for this reward.';
+    if (o.kind === 'free' || o.kind === 'price') {
+      var p = P[o.code];
+      item = { code: o.code, size: o.size, name: (o.size ? SIZE[o.size] + ' ' : '') + p.name };
+      amount = o.kind === 'price' ? o.price : 0;
+    } else if (o.kind === 'amount') amount = -Math.min(o.amount, food);
+    else amount = -Math.round(food * o.pct / 100);
+    return { offer: o, type: S.offer.type, item: item, amount: why ? 0 : amount, why: why };
+  }
+  function totals() {
+    var food = S.cart.reduce(function (a, it) { return a + unit(it) * it.qty; }, 0);
+    // Promo codes come off the whole food total, before any MyMcDonald's deal (as the register does)
+    var promo = S.promo ? Math.round(food * S.promo.pct / 100) : 0;
+    var oi = offerInfo();
+    if (oi) food = Math.max(0, food + oi.amount);
+    food = Math.max(0, food - promo);
+    var r = (+store.settings.taxRate || 0) / 100;
+    if (store.settings.taxInclusive) return { sub: food, tax: Math.round(food - food / (1 + r)), total: food };
+    var tax = Math.round(food * r);
+    return { sub: food, tax: tax, total: food + tax };
+  }
+  function count() { return S.cart.reduce(function (a, it) { return a + it.qty; }, 0); }
+  function fromPrice(p) {
+    if (p.sizes) return Math.min.apply(null, Object.keys(p.sizes).map(function (k) { return p.sizes[k]; }));
+    return p.price;
+  }
+  function ingredients(it) { var p = P[it.code], m = p.meal ? P[p.meal.main] : p; return (m && m.ing) || []; }
+
+  // ---------------------------------------------------------------- views
+  var slideTimer = null;
+  function render() {
+    clearInterval(slideTimer);
+    var app = $('app');
+    if (store.locked) {
+      app.innerHTML = '<div class="view"><div class="closed"><img src="assets/logo.png" alt=""><h1>This kiosk is closed</h1><p>Please order at the front counter.</p></div></div>';
+      return;
+    }
+    app.innerHTML = VIEWS[S.view]();
+    if (S.view === 'attract') startSlides();
+    if (S.view === 'menu') { var l = app.querySelector('.list'); if (l) l.scrollTop = S.listTop || 0; }
+  }
+  var SLIDES = [
+    { bg: '#db0007', fg: '#fff', big: '🧃', code: 530, tag: 'NEW', h: 'Refreshers are here', p: 'Strawberry Watermelon, Mango Pineapple and Blackberry Passion Fruit.' },
+    { bg: '#ffbc0d', fg: '#292929', big: '🍔', tag: 'LIMITED TIME', h: 'The Big Arch', p: 'Two beef patties, white cheddar, crispy onions and Big Arch sauce.' },
+    { bg: '#27251f', fg: '#ffbc0d', big: '⚡', code: 536, tag: 'NEW', h: 'Red Bull Dragonberry Energizer', p: 'Red Bull, blue raspberry and dragon fruit, over ice.' },
+    { bg: '#ffbc0d', fg: '#292929', big: '💲', code: 1030, tag: 'McVALUE', h: '$5 Meal Deal', p: 'McDouble or McChicken, 4 Pc McNuggets, small fries and a small drink.' },
+    { bg: '#1f5fa8', fg: '#fff', big: '🥤', code: 535, tag: 'CRAFTED SODAS', h: 'Dirty Dr Pepper', p: 'Also try Sprite Berry Blast and Orange Dream, topped with cold foam.' }
+  ];
+  function startSlides() {
+    var i = 0, els = document.querySelectorAll('.slide');
+    slideTimer = setInterval(function () {
+      els[i].classList.remove('on'); i = (i + 1) % els.length; els[i].classList.add('on');
+    }, 5000);
+  }
+  function topbar(right) {
+    return '<div class="topbar"><img src="assets/logo.png" alt="McDonald’s">' + (right || '') + '</div>';
+  }
+  function orderBar(primary) {
+    var t = totals(), where = S.dine === 'EAT IN' ? 'Eat In' + (S.table ? ' · Table ' + S.table : '') : 'Take Out';
+    return '<div class="bar"><button class="btn line" data-act="cancel">Start Over</button>' +
+      '<div class="info">' + where + ' · ' + count() + ' item' + (count() === 1 ? '' : 's') + '<b>' + money(t.total) + '</b></div>' + (primary || '') + '</div>';
+  }
+
+  var VIEWS = {
+    attract: function () {
+      return '<div class="view" id="attract" data-act="start"><div class="attract-art">' + SLIDES.map(function (s, i) {
+        return '<div class="slide' + (i === 0 ? ' on' : '') + '" style="--bg:' + s.bg + ';--fg:' + s.fg + '"><div class="big">' +
+          (s.code && PHOTOS[s.code] ? '<img src="assets/products/' + s.code + '.png" alt="">' : s.big) + '</div><div class="tag">' + s.tag + '</div>' +
+          '<h2>' + esc(s.h) + '</h2><p>' + esc(s.p) + '</p></div>';
+      }).join('') + '</div><div class="touch"><div class="go"><img src="assets/logo.png" alt=""><b class="pulse">Touch to order</b></div></div></div>';
+    },
+    where: function () {
+      return '<div class="view">' + topbar('<button class="link" data-act="cancel">Cancel</button>') +
+        '<div class="ask"><h1>Where will you be eating today?</h1><div class="pick">' +
+        '<button data-dine="EAT IN"><span class="ic">🍽️</span>Eat In</button>' +
+        '<button data-dine="TAKE OUT"><span class="ic">🛍️</span>Take Out</button></div></div></div>';
+    },
+    table: function () {
+      return '<div class="view">' + topbar('<button class="link" data-act="where">Back</button>') +
+        '<div class="ask"><h1>Want us to bring your food to you?</h1><div class="sub">Take a table tent from beside the kiosk, then enter its number.</div>' +
+        '<div class="tent" id="tent">' + esc(S.tentEntry || '') + '&nbsp;</div>' +
+        '<div class="keypad">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, '⌫'].map(function (k) { return '<button data-key="' + k + '">' + k + '</button>'; }).join('') + '</div>' +
+        '<div class="pick" style="gap:calc(14px * var(--s))"><button class="btn line" data-act="notable" style="width:auto;padding:0 calc(24px * var(--s));font-size:calc(18px * var(--s));flex-direction:row">No thanks, I’ll pick it up</button>' +
+        '<button class="btn" data-act="settable" style="width:auto;padding:0 calc(32px * var(--s));font-size:calc(18px * var(--s));flex-direction:row"' + (S.tentEntry ? '' : ' disabled') + '>Continue</button></div></div></div>';
+    },
+    // After Eat In / Take Out: "Do you have a MyMcDonald's code?" (Skip goes straight to the menu)
+    mymask: function () {
+      var e = S.mymEntry || '';
+      return '<div class="view">' + topbar('<button class="link" data-act="where">Back</button>') +
+        '<div class="ask"><h1>Do you have a MyMcDonald’s code?</h1><div class="sub">Enter the 4-digit code from your MyMcDonald’s app to earn points and use your rewards.</div>' +
+        '<div class="tent">' + (e ? esc(e) : '&nbsp;') + '</div><div class="err" style="margin-top:calc(-12px * var(--s))">' + esc(S.mymErr || '') + '</div>' +
+        '<div class="keypad">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, '⌫'].map(function (k) { return '<button data-mymk="' + k + '">' + k + '</button>'; }).join('') + '</div>' +
+        '<div class="pick" style="gap:calc(14px * var(--s))"><button class="btn line" data-act="mymskip" style="width:auto;padding:0 calc(32px * var(--s));font-size:calc(18px * var(--s));flex-direction:row">Skip</button>' +
+        '<button class="btn" data-act="mymgo" style="width:auto;padding:0 calc(32px * var(--s));font-size:calc(18px * var(--s));flex-direction:row"' + (e.length >= 4 && !S.mymBusy ? '' : ' disabled') + '>' +
+        (S.mymBusy ? 'Checking…' : 'Continue') + '</button></div>' +
+        '<button class="link" data-act="mymjoin">Don’t have a code? Join MyMcDonald’s Rewards</button></div></div>';
+    },
+    // Their rewards, straight after a correct code
+    mymrewards: function () {
+      return '<div class="view">' + topbar('<button class="link" data-act="mym-remove-start">Not you?</button>') +
+        '<div class="review"><div class="in"><h1>Hi ' + esc(S.member.name) + '!</h1>' +
+        (S.joined === S.member.code ? '<div class="newcode"><span>Your new MyMcDonald’s code</span><div class="digits">' +
+          String(S.member.code).split('').map(function (d) { return '<b>' + d + '</b>'; }).join('') + '</div><small>Write it down or take a photo. It’s also printed on your order slip.</small></div>' : '') +
+        '<p class="where">You have <b>' + S.member.points.toLocaleString() +
+        ' points</b>. Pick one deal or reward for this order, or just earn points.</p>' + offerCards() + '</div></div>' +
+        '<div class="bar"><span class="info"></span><button class="btn" data-act="mymdone">' + (S.offer ? 'Continue to Menu' : 'Just Earn Points') + '</button></div></div>';
+    },
+    menu: function () {
+      var cats = liveCats();
+      var c = cats.filter(function (x) { return x.id === S.cat; })[0] || cats[0];
+      S.cat = c.id;
+      return '<div class="view"><div class="menu"><div class="rail"><img class="logo" src="assets/logo.png" alt="">' + cats.map(function (x) {
+        return '<button data-cat="' + x.id + '" class="' + (x.id === S.cat ? 'on' : '') + '"><span class="ic">' + x.ic + '</span>' + esc(x.title) + '</button>';
+      }).join('') + '</div><div class="list"><h1>' + esc(c.title) + '</h1><p class="blurb">' + esc(c.blurb) + '</p><div class="cards">' + catCodes(c).map(function (code) {
+        var p = P[code];
+        if (!p || p.price === null || p.price === undefined) return '';
+        var out = store.outages[code];
+        var pr = out ? 'Currently unavailable' : p.meal && !p.meal.fixedSize ? money(p.price) + ' <small>Medium meal</small>' : (p.sizes ? '<small>from</small> ' : '') + money(fromPrice(p));
+        return '<button class="card' + (out ? ' out' : '') + '" data-code="' + code + '" style="--tint:' + tint(p) + '">' + (NEW.indexOf(code) >= 0 ? '<span class="new">NEW</span>' : '') +
+          '<span class="art">' + art(p) + '</span><span class="nm">' + esc(p.name) + '</span><span class="pr">' + pr + '</span></button>';
+      }).join('') + '</div></div></div>' +
+        orderBar('<button class="btn" data-act="review"' + (S.cart.length ? '' : ' disabled') + '>View My Order</button>') + '</div>';
+    },
+    build: function () { return buildView(); },
+    review: function () {
+      var t = totals(), st = store.settings;
+      return '<div class="view"><div class="review"><div class="in"><h1>Review Order</h1><p class="where">' +
+        (S.dine === 'EAT IN' ? '🍽️ Eat In' + (S.table ? ' · Table service, table ' + S.table : ' · Pick up at the counter') : '🛍️ Take Out') +
+        ' · <button class="link" data-act="where">Change</button></p>' +
+        (S.cart.length ? S.cart.map(function (it, i) {
+          var p = P[it.code];
+          return '<div class="rline" style="--tint:' + tint(p) + '"><span class="art">' + art(p) + '</span><div class="t"><div class="nm">' + it.qty + ' ' + esc(p.name) + '</div>' +
+            '<div class="mods">' + describe(it) + '</div><div class="acts"><button class="link" data-edit="' + i + '">Edit</button><button class="link" data-rm="' + i + '">Remove</button></div></div>' +
+            '<div class="pr">' + money(unit(it) * it.qty) + '</div></div>';
+        }).join('') : '<p>Your order is empty.</p>') + offerLineHtml() + mymPanel() + promoPanel() +
+        '<div class="tot"><div><span>Subtotal</span><span>' + money(t.sub) + '</span></div><div><span>' + esc(st.taxInclusive ? 'Includes ' + st.taxLabel : st.taxLabel) + '</span><span>' + money(t.tax) + '</span></div>' +
+        '<div class="t"><span>Total</span><span>' + money(t.total) + '</span></div></div>' +
+        '<div class="note"><span class="ic">💵</span><div><b>Pay at the counter.</b> This kiosk doesn’t take payment. You’ll get a slip with a 4-digit code to show the cashier.</div></div>' +
+        '<div class="err" id="err"></div></div></div>' +
+        orderBar('<button class="btn grey" data-act="menu">Add More</button><button class="btn" data-act="checkout"' + (S.cart.length ? '' : ' disabled') + '>Checkout</button>') + '</div>';
+    },
+    done: function () {
+      var d = S.done;
+      var bars = barcode(d.code + String(d.number));
+      return '<div class="view"><div class="paid"><h1>Thank you!</h1><p class="sub">Take your slip to the front counter to pay.' + (S.dineDone === 'EAT IN' && d.table ? ' Then place table tent <b>' + d.table + '</b> on your table, and we’ll bring your food to you.' : '') + '</p>' +
+        '<div class="slip"><img src="assets/logo.png" alt=""><div class="pay">PAY AT COUNTER</div><div class="ord">ORDER NUMBER</div><div class="num">' + esc(d.number) + '</div>' +
+        '<div class="row"><span>' + (S.dineDone === 'EAT IN' ? 'EAT IN' : 'TAKE OUT') + '</span><span>' + (d.table ? 'TABLE ' + d.table : 'KIOSK') + '</span></div>' +
+        '<div class="row"><span>' + d.items + ' ITEM' + (d.items === 1 ? '' : 'S') + '</span><span>' + money(d.total) + '</span></div>' +
+        (d.member ? '<div class="row"><span>MyMcDonald’s</span><span>' + esc(d.member.toUpperCase()) + '</span></div>' : '') +
+        (d.newCode ? '<div class="row"><span>YOUR NEW MyMcD CODE</span><span>' + esc(d.newCode) + '</span></div>' : '') +
+        (d.promo ? '<div class="row"><span>PROMO ' + d.promo + '% OFF</span><span></span></div>' : '') +
+        (d.offer ? '<div class="row"><span>' + esc(d.offer.toUpperCase()).slice(0, 34) + '</span><span></span></div>' : '') +
+        '<div class="code">YOUR CODE</div><div class="digits">' + String(d.code).split('').map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</div>' +
+        '<div class="barcode">' + bars + '</div><div class="small">' + new Date().toLocaleString() + '</div></div>' +
+        '<div class="how"><div><b>1</b>Go to the front counter</div><div><b>2</b>Show the cashier your code</div><div><b>3</b>Pay, and we’ll start your order</div></div>' +
+        '<button class="btn" data-act="finish">Done</button><div class="count" id="count"></div></div></div>';
+    }
+  };
+  // A barcode-looking stripe pattern made from the code (decoration: the cashier types the 4 digits)
+  function barcode(s) {
+    var out = '', h = 7;
+    for (var i = 0; i < 46; i++) {
+      h = (h * 31 + s.charCodeAt(i % s.length) + i) % 9973;
+      out += '<i style="width:' + (1 + h % 3) + 'px;margin-right:' + (1 + (h >> 3) % 3) + 'px"></i>';
+    }
+    return out;
+  }
+  function offerLineHtml() {
+    var oi = offerInfo();
+    if (!oi) return '';
+    var o = oi.offer, p = oi.item ? P[oi.item.code] : null;
+    return '<div class="rline mymline" style="--tint:#fff1c9"><span class="art">' + (p ? art(p) : '🎟️') + '</span><div class="t"><div class="nm">' +
+      (oi.type === 'reward' ? 'Reward: ' : 'Deal: ') + esc(o.name) + '</div><div class="mods">' + (oi.why ? '<span class="no">' + esc(oi.why) + '</span>' :
+      (oi.item ? '1 ' + esc(oi.item.name) + (o.kind === 'free' ? ' · Free' : '') : 'Taken off your total') + (oi.type === 'reward' ? ' · ' + o.points.toLocaleString() + ' points' : '')) +
+      '</div><div class="acts"><button class="link" data-act="mym-offers">Change</button><button class="link" data-act="mym-nooffer">Remove</button></div></div>' +
+      '<div class="pr">' + (oi.why ? '—' : oi.amount < 0 ? '−' + money(-oi.amount) : money(oi.amount)) + '</div></div>';
+  }
+  function mymPanel() {
+    if (!S.member) {
+      return '<div class="mym"><img src="assets/logo.png" alt=""><div class="t"><b>MyMcDonald’s Rewards</b>Earn points on this order and use a deal or reward.</div>' +
+        '<button class="btn" data-act="mym">Enter Code</button></div>';
+    }
+    return '<div class="mym on"><img src="assets/logo.png" alt=""><div class="t"><b>Hi ' + esc(S.member.name) + '!</b>' + S.member.points.toLocaleString() +
+      ' points · you’ll earn points when you pay</div><div class="mym-acts">' + (S.offer ? '' : '<button class="btn" data-act="mym-offers">Deals &amp; Rewards</button>') +
+      '<button class="link" data-act="mym-remove">Not you?</button></div></div>';
+  }
+  // Code entry: the 4-digit code from the MyMcDonald's app
+  function mymCode() {
+    var entry = '', bg = document.createElement('div');
+    bg.className = 'sheet-bg';
+    function draw(msg) {
+      bg.innerHTML = '<div class="sheet mym-sheet"><h3>MyMcDonald’s Rewards</h3><p class="sub">Enter the 4-digit code from your MyMcDonald’s app.</p>' +
+        '<div class="tent">' + (entry || '&nbsp;') + '</div><div class="err">' + (msg || '') + '</div>' +
+        '<div class="keypad">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, '⌫'].map(function (k) { return '<button data-mk="' + k + '">' + k + '</button>'; }).join('') + '</div>' +
+        '<div class="end"><button class="btn line" data-mk="cancel">Cancel</button><button class="btn" data-mk="ok"' + (entry.length >= 4 ? '' : ' disabled') + '>Continue</button></div></div>';
+    }
+    bg.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-mk]'); if (!b) return;
+      var k = b.getAttribute('data-mk');
+      if (k === 'cancel') return bg.remove();
+      if (k === 'ok') {
+        b.disabled = true; b.textContent = 'Checking…';
+        return fetch('/api/kiosk/member', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: entry }) })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'That code wasn’t found.'); return j; }); })
+          .then(function (m) { S.member = m; S.offer = null; bg.remove(); render(); mymOffers(); })
+          .catch(function (err) { entry = ''; draw(err.message); });
+      }
+      entry = k === 'C' ? '' : k === '⌫' ? entry.slice(0, -1) : (entry + k).slice(0, 8);
+      draw();
+    });
+    draw();
+    $('app').appendChild(bg);
+  }
+  // Pick one deal or reward (like the app); the register applies it when the order is brought up
+  function offerCards() {
+    function card(o, type) {
+      var p = o.code ? P[o.code] : null, short = type === 'reward' && S.member.points < o.points;
+      var on = S.offer && S.offer.id === o.id;
+      return '<button class="opt' + (on ? ' on' : '') + '" data-mo="' + o.id + '" data-mt="' + type + '"' + (short ? ' disabled' : '') + ' style="--tint:#fff1c9"><span class="art">' + (p ? art(p) : '🎟️') + '</span>' +
+        esc(o.name) + '<small>' + (type === 'reward' ? o.points.toLocaleString() + ' points' + (short ? ' · not enough yet' : '') : 'Deal') + '</small></button>';
+    }
+    return '<h4>Your Deals</h4><div class="opts">' + (MENU.deals || []).map(function (o) { return card(o, 'deal'); }).join('') +
+      '</div><h4>Your Rewards</h4><div class="opts">' + (MENU.rewards || []).map(function (o) { return card(o, 'reward'); }).join('') + '</div>';
+  }
+  function mymOffers() {
+    var bg = document.createElement('div');
+    bg.className = 'sheet-bg';
+    bg.innerHTML = '<div class="sheet mym-sheet"><h3>Hi ' + esc(S.member.name) + '! Pick a deal or reward</h3><p class="sub">One per order. You have ' +
+      S.member.points.toLocaleString() + ' points.</p><div class="mym-scroll">' + offerCards() + '</div>' +
+      '<div class="end"><button class="btn line" data-mo="none">No thanks, just earn points</button></div></div>';
+    bg.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-mo]'); if (!b) return;
+      var id = b.getAttribute('data-mo');
+      S.offer = id === 'none' ? null : { id: id, type: b.getAttribute('data-mt') };
+      bg.remove(); render();
+    });
+    $('app').appendChild(bg);
+  }
+
+  // Join on the kiosk: just a first name; the code is random and points start at 0
+  function mymJoin() {
+    var bg = document.createElement('div');
+    bg.className = 'sheet-bg';
+    bg.innerHTML = '<div class="sheet mym-sheet"><h3>Join MyMcDonald’s Rewards</h3><p class="sub">Enter your first name and we’ll make you a code.</p>' +
+      '<input class="join-name" maxlength="30" autocomplete="off" placeholder="First name"><div class="err"></div>' +
+      '<div class="end"><button class="btn line" data-j="cancel">Cancel</button><button class="btn" data-j="ok">Get My Code</button></div></div>';
+    var inp = bg.querySelector('input'), err = bg.querySelector('.err');
+    function go() {
+      var name = inp.value.trim(), b = bg.querySelector('[data-j="ok"]');
+      if (name.length < 2) { err.textContent = 'Please enter your name.'; return; }
+      b.disabled = true; b.textContent = 'Making your card…';
+      fetch('/api/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Could not make a card.'); return j; }); })
+        .then(function (m) {
+          S.member = m; S.offer = null; S.joined = m.code;
+          bg.remove(); S.view = 'mymrewards'; render();
+        })
+        .catch(function (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Get My Code'; });
+    }
+    bg.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-j]'); if (!b) return;
+      if (b.getAttribute('data-j') === 'cancel') bg.remove(); else go();
+    });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    $('app').appendChild(bg);
+    inp.focus();
+  }
+
+  // Where the customer goes after Eat In / Take Out: the MyMcDonald's question the first time, then on as before
+  function afterWhere() {
+    if (!S.member && !S.mymAsked) { S.mymAsked = true; S.mymEntry = ''; S.mymErr = ''; return 'mymask'; }
+    return S.cart.length ? 'review' : 'menu';
+  }
+  function mymCheck() {
+    if ((S.mymEntry || '').length < 4 || S.mymBusy) return;
+    if (location.protocol.indexOf('http') !== 0) { S.mymErr = 'This needs the simulator server running.'; return render(); }
+    S.mymBusy = true; S.mymErr = ''; render();
+    fetch('/api/kiosk/member', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: S.mymEntry }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'That code wasn’t found.'); return j; }); })
+      .then(function (m) { S.member = m; S.offer = null; S.view = 'mymrewards'; })
+      .catch(function (e) { S.mymErr = e.message; S.mymEntry = ''; })
+      .then(function () { S.mymBusy = false; render(); });
+  }
+
+  // Promo code from a survey receipt: 6 digits, 10% off. The cashier claims it when the order is brought up.
+  function promoEntry() {
+    if (S.promo) return;
+    var bg = document.createElement('div');
+    bg.className = 'sheet-bg';
+    bg.innerHTML = '<div class="sheet mym-sheet"><h3>Promo code</h3><p class="sub">Enter the 6-digit code from your survey receipt.</p>' +
+      '<input class="join-name" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000"><div class="err"></div>' +
+      '<div class="end"><button class="btn line" data-pc="cancel">Cancel</button><button class="btn" data-pc="ok">Apply</button></div></div>';
+    var inp = bg.querySelector('input'), err = bg.querySelector('.err');
+    function go() {
+      var code = inp.value.replace(/\D/g, '');
+      if (code.length !== 6) { err.textContent = 'The promo code has 6 digits.'; return; }
+      var b = bg.querySelector('[data-pc="ok"]');
+      b.disabled = true; b.textContent = 'Checking…';
+      fetch('/api/promo/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'That promo code wasn’t accepted.'); return j; }); })
+        .then(function (j) { S.promo = { code: j.code, pct: j.pct }; bg.remove(); render(); })
+        .catch(function (x) { err.textContent = x.message; b.disabled = false; b.textContent = 'Apply'; });
+    }
+    bg.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pc]'); if (!b) return;
+      if (b.getAttribute('data-pc') === 'cancel') bg.remove(); else go();
+    });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    $('app').appendChild(bg);
+    inp.focus();
+  }
+  function promoPanel() {
+    if (S.promo) {
+      return '<div class="mym on"><img src="assets/logo.png" alt=""><div class="t"><b>Promo applied</b>' + S.promo.pct + '% off your food, taken off the total</div>' +
+        '<div class="mym-acts"><button class="link" data-act="promo-remove">Remove</button></div></div>';
+    }
+    return '<div class="mym"><img src="assets/logo.png" alt=""><div class="t"><b>Have a promo code?</b>Enter the code from your survey receipt</div>' +
+      '<button class="btn line" data-act="promo">Enter Code</button></div>';
+  }
+  function describe(it) {
+    var p = P[it.code], bits = [];
+    if (p.meal) {
+      if (!p.meal.fixedSize) bits.push(SIZE[it.size] + ' Meal');
+      if (it.side) bits.push(esc(P[it.side].name));
+      if (it.drink) bits.push(esc(P[it.drink].name));
+    } else if (p.sizes) bits.push(/McFlurry/.test(p.name) ? (it.size === 'S' ? 'Snack' : 'Regular') : SIZE[it.size]);
+    (it.no || []).forEach(function (g) { bits.push('<span class="no">No ' + esc(g) + '</span>'); });
+    (it.extra || []).forEach(function (g) { bits.push('<span class="ex">Extra ' + esc(g) + '</span>'); });
+    return bits.join(' · ');
+  }
+
+  // ---------------------------------------------------------------- item builder
+  // Steps: meal? -> size -> side -> drink -> summary (customize is a page off the summary)
+  function startBuild(code, editIdx) {
+    var p = P[code], it;
+    if (editIdx !== undefined) it = clone(S.cart[editIdx]);
+    else {
+      it = { code: code, qty: 1, no: [], extra: [] };
+      if (p.sizes) it.size = p.sizes.M ? 'M' : Object.keys(p.sizes)[0];
+      if (p.meal) setupMeal(it);
+    }
+    S.build = { it: it, edit: editIdx, askMeal: editIdx === undefined && !p.meal && !!mealFor(code), step: null, from: code };
+    S.build.step = editIdx !== undefined ? 'summary' : firstStep();
+    S.view = 'build';
+    render();
+  }
+  function setupMeal(it) {
+    var p = P[it.code];
+    it.size = p.meal.fixedSize || 'M';
+    var sides = CH.sides[p.meal.sides] || [];
+    it.side = sides[0] ? sides[0].code : null;
+    it.drink = null;
+    delete it.sizesPicked;
+  }
+  function steps() {
+    var b = S.build, p = P[b.it.code], out = [];
+    if (b.askMeal) out.push(['meal', 'Meal?']);
+    if (p.meal) {
+      if (!p.meal.fixedSize) out.push(['size', 'Size']);
+      if ((CH.sides[p.meal.sides] || []).length > 1) out.push(['side', 'Side']);
+      out.push(['drink', 'Drink']);
+    } else if (p.sizes && Object.keys(p.sizes).length > 1) out.push(['size', 'Size']);
+    out.push(['summary', 'Review']);
+    return out;
+  }
+  function firstStep() { return steps()[0][0]; }
+  function nextStep() {
+    var st = steps(), i = st.map(function (x) { return x[0]; }).indexOf(S.build.step);
+    S.build.step = st[Math.min(st.length - 1, i + 1)][0];
+    render();
+  }
+  function prevStep() {
+    var b = S.build;
+    if (b.step === 'customize') { b.step = 'summary'; return render(); }
+    var st = steps(), i = st.map(function (x) { return x[0]; }).indexOf(b.step);
+    if (i <= 0 || b.edit !== undefined && b.step === 'summary') { S.build = null; S.view = b.edit !== undefined ? 'review' : 'menu'; return render(); }
+    b.step = st[i - 1][0];
+    render();
+  }
+  function opt(attrs, p, label, sub, on, disabled) {
+    return '<button class="opt' + (on ? ' on' : '') + '" ' + attrs + (disabled ? ' disabled' : '') + ' style="--tint:' + tint(p) + '"><span class="art">' + art(p) + '</span>' +
+      esc(label) + (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  }
+  function buildView() {
+    var b = S.build, it = b.it, p = P[it.code], st = steps(), body = '', foot = '';
+    var names = st.map(function (x) { return x[0]; }), cur = names.indexOf(b.step === 'customize' ? 'summary' : b.step);
+    if (b.step === 'meal') {
+      var mc = mealFor(b.from), m = P[mc], base = P[b.from];
+      body = '<h3>Make it a Meal?</h3><div class="opts two">' +
+        opt('data-meal="1"', m, 'Make it a Meal', 'With fries and a drink · ' + money(m.price), false) +
+        opt('data-meal="0"', base, base.name + ' only', money(base.price), false) + '</div>';
+    } else if (b.step === 'size') {
+      if (p.meal) {
+        body = '<h3>Choose a size</h3><div class="opts two">' +
+          opt('data-size="M"', P[400], 'Medium', 'Medium fries & drink · ' + money(p.price), it.size === 'M') +
+          opt('data-size="L"', P[400], 'Large', 'Large fries & drink · +' + money(p.meal.large || 0), it.size === 'L') + '</div>';
+      } else {
+        body = '<h3>Choose a size</h3><div class="opts two">' + Object.keys(p.sizes).map(function (z) {
+          var nm = /McFlurry/.test(p.name) ? (z === 'S' ? 'Snack Size' : 'Regular') : SIZE[z];
+          return opt('data-size="' + z + '"', p, nm, money(p.sizes[z]), it.size === z);
+        }).join('') + '</div>';
+      }
+    } else if (b.step === 'side') {
+      body = '<h3>Choose your side</h3><div class="opts">' + (CH.sides[p.meal.sides] || []).map(function (c) {
+        var sp = P[c.code];
+        return opt('data-side="' + c.code + '"', sp, (p.meal.fixedSize ? '' : SIZE[it.size] + ' ') + sp.name, c.up ? '+' + money(c.up) : 'Included', it.side === c.code, store.outages[c.code]);
+      }).join('') + '</div>';
+    } else if (b.step === 'drink') {
+      body = '<h3>Choose your drink</h3><div class="opts">' + (CH.drinks[p.meal.drinks] || []).map(function (c) {
+        var dp = P[c.code];
+        return opt('data-drink="' + c.code + '"', dp, dp.name, c.up ? '+' + money(c.up) : 'Included', it.drink === c.code, store.outages[c.code]);
+      }).join('') + '</div>';
+    } else if (b.step === 'customize') {
+      body = '<h3>Customize ' + esc((p.meal ? P[p.meal.main] : p).name) + '</h3>' + ingredients(it).map(function (g) {
+        var state = it.no.indexOf(g) >= 0 ? 0 : it.extra.indexOf(g) >= 0 ? 2 : 1;
+        var lbl = ['<small class="no">None</small>', '<small>Regular</small>', '<small class="ex">Extra' + (ADD[g] ? ' · +' + money(ADD[g]) : '') + '</small>'][state];
+        return '<div class="ing"><div class="t">' + esc(g) + lbl + '</div><button class="round" data-ing="' + esc(g) + '" data-d="-1"' + (state === 0 ? ' disabled' : '') + ' aria-label="Less">−</button>' +
+          '<button class="round" data-ing="' + esc(g) + '" data-d="1"' + (state === 2 ? ' disabled' : '') + ' aria-label="More">+</button></div>';
+      }).join('');
+      foot = '<button class="btn" data-act="custom-done">Done</button>';
+    } else {  // summary
+      var rows = '';
+      if (p.meal) {
+        var main = P[p.meal.main];
+        rows += srow(main, main.name, (p.meal.fixedSize ? '' : SIZE[it.size] + ' Meal'), names.indexOf('size') >= 0 ? 'size' : null);
+        if (it.side) rows += srow(P[it.side], (p.meal.fixedSize ? '' : SIZE[it.size] + ' ') + P[it.side].name, '', names.indexOf('side') >= 0 ? 'side' : null);
+        if (it.drink) rows += srow(P[it.drink], P[it.drink].name, '', 'drink');
+      } else rows += srow(p, p.name, p.sizes ? (/McFlurry/.test(p.name) ? (it.size === 'S' ? 'Snack Size' : 'Regular') : SIZE[it.size]) : '', names.indexOf('size') >= 0 ? 'size' : null);
+      var mods = describe({ code: it.code, no: it.no, extra: it.extra });
+      mods = (it.no.length || it.extra.length) ? '<div class="mods">' + mods.split(' · ').filter(function (x) { return /class="(no|ex)"/.test(x); }).join(' · ') + '</div>' : '';
+      body = '<h3>' + (b.edit !== undefined ? 'Update your item' : 'Your ' + (p.meal ? 'meal' : 'item')) + '</h3><div class="summary">' + rows + mods +
+        (ingredients(it).length ? '<div><button class="btn line" data-act="customize">Customize</button></div>' : '') + '</div>';
+      foot = '<div class="qty"><button class="round" data-q="-1"' + (it.qty <= 1 ? ' disabled' : '') + ' aria-label="Less">−</button><span>' + it.qty + '</span>' +
+        '<button class="round" data-q="1"' + (it.qty >= 20 ? ' disabled' : '') + ' aria-label="More">+</button></div><span class="grow"></span>' +
+        '<button class="btn" data-act="add">' + (b.edit !== undefined ? 'Update Order' : 'Add to Order') + ' · ' + money(unit(it) * it.qty) + '</button>';
+    }
+    return '<div class="view"><div class="build"><div class="bhead" style="--tint:' + tint(p) + '"><button class="back" data-act="back">‹ Back</button>' +
+      '<span class="art">' + art(p) + '</span><h2>' + esc(p.name) + '</h2><span class="price">' + money(unit(it) * it.qty) + '</span></div>' +
+      (st.length > 1 ? '<div class="steps">' + st.map(function (x, i) {
+        return '<span class="' + (i < cur ? 'done' : i === cur ? 'on' : '') + '">' + x[1] + '</span>';
+      }).join('') + '</div>' : '') +
+      '<div class="bbody">' + body + '</div>' + (foot ? '<div class="bfoot">' + foot + '</div>' : '<div class="bfoot"><span class="grow"></span><button class="btn line" data-act="cancel-item">Cancel Item</button></div>') + '</div></div>';
+  }
+  function srow(p, title, sub, go) {
+    return '<div class="srow"><span class="art">' + art(p) + '</span><div class="t">' + esc(title) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' +
+      (go ? '<button class="link" data-go="' + go + '">Change</button>' : '') + '</div>';
+  }
+  function addToOrder() {
+    var b = S.build, it = b.it;
+    if (b.edit !== undefined) { S.cart[b.edit] = it; S.build = null; S.view = 'review'; return render(); }
+    S.cart.push(it);
+    S.build = null;
+    S.view = 'menu';
+    render();
+    // Real kiosks suggest a dessert once, after the first sandwich or meal
+    var p = P[it.code];
+    if (!S.suggested && (p.meal || p.cat === 'burgers' || p.cat === 'chicken')) { S.suggested = true; suggest(); }
+  }
+  function suggest() {
+    var codes = [604, 606, 607, 600].filter(function (c) { return P[c] && !store.outages[c] && served(c); });
+    if (!codes.length) return;
+    var bg = document.createElement('div');
+    bg.className = 'sheet-bg';
+    bg.innerHTML = '<div class="sheet"><h3>Complete your meal?</h3><p class="sub">Add something sweet to your order.</p><div class="opts">' + codes.map(function (c) {
+      var p = P[c];
+      return opt('data-sugg="' + c + '"', p, p.name, money(p.sizes ? p.sizes.S || p.price : p.price), false);
+    }).join('') + '</div><div class="end"><button class="btn line" data-act="nothanks">No Thanks</button></div></div>';
+    $('app').appendChild(bg);
+  }
+
+  // ---------------------------------------------------------------- checkout
+  var placing = false;
+  function checkout() {
+    if (!S.cart.length || placing) return;
+    var err = $('err');
+    if (location.protocol.indexOf('http') !== 0) { err.textContent = 'The kiosk needs the simulator server running.'; return; }
+    placing = true;
+    var btn = document.querySelector('[data-act="checkout"]');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    var t = totals(), n = count();
+    fetch('/api/kiosk/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dine: S.dine, table: S.table, promo: S.promo ? S.promo.code : null, mymcd: S.member ? { code: S.member.code, offer: S.offer && S.offer.id, type: S.offer && S.offer.type } : null,
+        items: S.cart.map(function (it) {
+        return { code: it.code, qty: it.qty, size: it.size, side: it.side, drink: it.drink, no: it.no, extra: it.extra };
+      }) })
+    }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Could not send the order.'); return j; }); })
+      .then(function (j) {
+        var oi = offerInfo();
+        S.done = { code: j.code, number: j.number, total: t.total, items: n, table: S.table, promo: S.promo ? S.promo.pct : null, member: S.member && S.member.name, offer: oi && !oi.why ? oi.offer.name : null,
+          newCode: S.member && S.joined === S.member.code ? S.member.code : null };
+        S.dineDone = S.dine;
+        S.cart = []; S.view = 'done';
+        render();
+        countdown(45);
+      })
+      .catch(function (e) { err.textContent = e.message + ' Please try again, or order at the front counter.'; btn.disabled = false; btn.textContent = 'Checkout'; })
+      .then(function () { placing = false; });
+  }
+  var cdTimer = null;
+  function countdown(sec) {
+    clearInterval(cdTimer);
+    var left = sec;
+    var tick = function () { var c = $('count'); if (c) c.textContent = 'This screen will reset in ' + left + ' seconds.'; if (left-- <= 0) reset(); };
+    tick();
+    cdTimer = setInterval(tick, 1000);
+  }
+  function reset() {
+    clearInterval(cdTimer);
+    S.view = 'attract'; S.dine = null; S.table = null; S.cart = []; S.cat = 'featured'; S.build = null; S.suggested = false; S.tentEntry = ''; S.listTop = 0;
+    S.member = null; S.offer = null; S.promo = null; S.mymAsked = false; S.mymEntry = ''; S.mymErr = ''; S.mymBusy = false; S.joined = null;
+    closeModal();
+    render();
+  }
+  function confirmCancel() {
+    if (!S.cart.length) return reset();
+    modal('Start over?', 'This will remove everything from your order.', [['Keep Ordering', 'line', closeModal], ['Start Over', '', reset]]);
+  }
+  function modal(title, text, btns) {
+    closeModal();
+    var bg = document.createElement('div');
+    bg.className = 'modal-bg'; bg.id = 'modal';
+    bg.innerHTML = '<div class="modal"><h3>' + esc(title) + '</h3><p id="modalText">' + esc(text) + '</p><div class="row">' + btns.map(function (b, i) {
+      return '<button class="btn ' + b[1] + '" data-m="' + i + '">' + esc(b[0]) + '</button>';
+    }).join('') + '</div></div>';
+    bg.addEventListener('click', function (e) { var x = e.target.closest('[data-m]'); if (x) btns[+x.getAttribute('data-m')][2](); });
+    $('app').appendChild(bg);
+  }
+  function closeModal() { var m = $('modal'); if (m) m.remove(); }
+
+  // ---------------------------------------------------------------- idle
+  var lastTouch = Date.now();
+  document.addEventListener('pointerdown', function () { lastTouch = Date.now(); }, true);
+  setInterval(function () {
+    if (S.view === 'attract' || S.view === 'done' || store.locked) return;
+    var idle = (Date.now() - lastTouch) / 1000;
+    if (idle > 75) return reset();
+    if (idle > 60) {
+      if (!$('modal')) modal('Do you need more time?', '', [['I need more time', '', function () { lastTouch = Date.now(); closeModal(); }]]);
+      $('modalText').textContent = 'Your order will be cleared in ' + Math.ceil(75 - idle) + ' seconds.';
+    }
+  }, 500);
+
+  // ---------------------------------------------------------------- touches
+  $('app').addEventListener('click', function (e) {
+    var t = e.target, x;
+    if ((x = t.closest('[data-sugg]'))) {
+      var c = +x.getAttribute('data-sugg'), p = P[c];
+      S.cart.push({ code: c, qty: 1, size: p.sizes ? (p.sizes.S ? 'S' : 'M') : undefined, no: [], extra: [] });
+      x.closest('.sheet-bg').remove(); render(); return;
+    }
+    if ((x = t.closest('[data-dine]'))) {
+      S.dine = x.getAttribute('data-dine');
+      if (S.dine === 'EAT IN') { S.tentEntry = S.table ? String(S.table) : ''; S.view = 'table'; }
+      else { S.table = null; S.view = afterWhere(); }
+      return render();
+    }
+    if ((x = t.closest('[data-mymk]'))) {
+      var mk = x.getAttribute('data-mymk');
+      S.mymErr = '';
+      S.mymEntry = mk === 'C' ? '' : mk === '⌫' ? (S.mymEntry || '').slice(0, -1) : ((S.mymEntry || '') + mk).slice(0, 8);
+      return render();
+    }
+    if (S.view === 'mymrewards' && (x = t.closest('[data-mo]'))) {
+      var oid = x.getAttribute('data-mo');
+      S.offer = S.offer && S.offer.id === oid ? null : { id: oid, type: x.getAttribute('data-mt') };
+      return render();
+    }
+    if ((x = t.closest('[data-key]'))) {
+      var k = x.getAttribute('data-key');
+      S.tentEntry = k === 'C' ? '' : k === '⌫' ? (S.tentEntry || '').slice(0, -1) : ((S.tentEntry || '') + k).replace(/^0+/, '').slice(0, 3);
+      return render();
+    }
+    if ((x = t.closest('[data-cat]'))) { S.cat = x.getAttribute('data-cat'); S.listTop = 0; return render(); }
+    if ((x = t.closest('[data-code]'))) { var l = document.querySelector('.list'); S.listTop = l ? l.scrollTop : 0; return startBuild(+x.getAttribute('data-code')); }
+    if ((x = t.closest('[data-meal]'))) {
+      var b = S.build;
+      if (x.getAttribute('data-meal') === '1') { b.it = { code: mealFor(b.from), qty: b.it.qty, no: b.it.no, extra: b.it.extra }; setupMeal(b.it); }
+      b.askMeal = false;
+      b.step = firstStep(); return render();
+    }
+    if ((x = t.closest('[data-size]'))) { S.build.it.size = x.getAttribute('data-size'); return nextStep(); }
+    if ((x = t.closest('[data-side]'))) { S.build.it.side = +x.getAttribute('data-side'); return nextStep(); }
+    if ((x = t.closest('[data-drink]'))) { S.build.it.drink = +x.getAttribute('data-drink'); return nextStep(); }
+    if ((x = t.closest('[data-go]'))) { S.build.step = x.getAttribute('data-go'); return render(); }
+    if ((x = t.closest('[data-ing]'))) {
+      var it = S.build.it, g = x.getAttribute('data-ing'), d = +x.getAttribute('data-d');
+      var state = it.no.indexOf(g) >= 0 ? 0 : it.extra.indexOf(g) >= 0 ? 2 : 1;
+      state = Math.max(0, Math.min(2, state + d));
+      it.no = it.no.filter(function (y) { return y !== g; }); it.extra = it.extra.filter(function (y) { return y !== g; });
+      if (state === 0) it.no.push(g); if (state === 2) it.extra.push(g);
+      var bb = document.querySelector('.bbody'), top = bb ? bb.scrollTop : 0;
+      render(); bb = document.querySelector('.bbody'); if (bb) bb.scrollTop = top;
+      return;
+    }
+    if ((x = t.closest('[data-q]'))) { var it2 = S.build.it; it2.qty = Math.max(1, Math.min(20, it2.qty + +x.getAttribute('data-q'))); return render(); }
+    if ((x = t.closest('[data-edit]'))) { var i = +x.getAttribute('data-edit'); return startBuild(S.cart[i].code, i); }
+    if ((x = t.closest('[data-rm]'))) { S.cart.splice(+x.getAttribute('data-rm'), 1); return render(); }
+    if ((x = t.closest('[data-act]'))) {
+      var a = x.getAttribute('data-act');
+      if (a === 'start') { S.view = 'where'; return render(); }
+      if (a === 'cancel') return confirmCancel();
+      if (a === 'where') { S.view = 'where'; return render(); }
+      if (a === 'notable') { S.table = null; S.view = afterWhere(); return render(); }
+      if (a === 'settable') { S.table = +S.tentEntry || null; S.view = afterWhere(); return render(); }
+      if (a === 'mymskip') { S.mymEntry = ''; S.mymErr = ''; S.view = S.cart.length ? 'review' : 'menu'; return render(); }
+      if (a === 'mymgo') return mymCheck();
+      if (a === 'mymjoin') return mymJoin();
+      if (a === 'mymdone') { S.view = S.cart.length ? 'review' : 'menu'; return render(); }
+      if (a === 'mym-remove-start') { S.member = null; S.offer = null; S.mymEntry = ''; S.view = 'mymask'; return render(); }
+      if (a === 'review') { S.view = 'review'; return render(); }
+      if (a === 'menu') { S.view = 'menu'; return render(); }
+      if (a === 'back') return prevStep();
+      if (a === 'cancel-item') { var e2 = S.build.edit; S.build = null; S.view = e2 !== undefined ? 'review' : 'menu'; return render(); }
+      if (a === 'customize') { S.build.step = 'customize'; return render(); }
+      if (a === 'custom-done') { S.build.step = 'summary'; return render(); }
+      if (a === 'add') return addToOrder();
+      if (a === 'nothanks') { x.closest('.sheet-bg').remove(); return; }
+      if (a === 'checkout') return checkout();
+      if (a === 'finish') return reset();
+      if (a === 'mym') return mymCode();
+      if (a === 'mym-offers') return mymOffers();
+      if (a === 'mym-nooffer') { S.offer = null; return render(); }
+      if (a === 'mym-remove') { S.member = null; S.offer = null; return render(); }
+      if (a === 'promo') return promoEntry();
+      if (a === 'promo-remove') { S.promo = null; return render(); }
+    }
+  });
+  $('a11y').addEventListener('click', function () { document.body.classList.toggle('reach'); });
+
+  // After a server reboot / soft reboot: reload only when no one is in the middle of an order
+  window.NP6_BEFORE_RELOAD = function () { return S.view === 'attract' || S.view === 'done' || store.locked; };
+  render();
+  loadStore();
+  setInterval(loadStore, 30000);
+  fetch('assets/products/manifest.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (m) {
+    if (!m) return;
+    (m.codes || []).forEach(function (c) { PHOTOS[c] = true; });
+    (m.logos || []).forEach(function (c) { LOGOS[c] = true; });
+    if (!document.querySelector('.sheet-bg, #modal')) render();
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

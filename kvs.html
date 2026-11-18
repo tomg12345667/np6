@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="assets/logo.png">
+<title>FC - KVS</title>
+<style>
+  /* Styled after a McDonald's kitchen video screen: black screen, white tickets with a slate header,
+     items flowing into columns, a coloured status footer, and the outlined bump-bar buttons along the bottom. */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: #000; color: #fff; font-family: Arial, Helvetica, sans-serif; display: flex; flex-direction: column;
+    -webkit-user-select: none; user-select: none; overflow: hidden; }
+
+  /* Window title bar */
+  #title { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; background: #fff; color: #111; font: 16px "Segoe UI", Arial, sans-serif; flex: none; }
+  #title img { width: 18px; height: 18px; }
+  #title .name { flex: 1; }
+  #title select, #title button { font: 13px "Segoe UI", Arial, sans-serif; padding: 3px 8px; border: 1px solid #aaa; background: #f3f3f3; color: #111; border-radius: 2px; cursor: pointer; }
+
+  /* Ticket area: rows of tickets; a ticket is 1-4 columns wide depending on how many items it has */
+  #area { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; overscroll-behavior: contain; }
+  #tickets { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 4px; }
+  .empty { color: #555; font: bold 22px Arial; padding: 40px; }
+  .ticket { display: flex; flex-direction: column; background: #fff; border: 3px solid #000; cursor: pointer; }
+  .ticket.sel { border-color: #7fe07f; }
+  .ticket.held { opacity: .9; }
+  .t-hd { display: flex; align-items: center; height: var(--hd); padding: 0 6px; background: #5b6180; color: #fff; font: bold var(--hdf) Arial;
+    border-bottom: 3px solid #2e3246; text-shadow: 0 1px 1px #000; white-space: nowrap; }
+  .t-hd span { flex: 1; overflow: hidden; }
+  .t-hd .c { text-align: center; }
+  .t-hd .r { text-align: right; }
+  .t-body { flex: 1; min-height: 0; display: flex; }
+  .t-col { width: var(--colw); flex: none; padding: 4px 6px 0 10px; overflow: hidden; }
+  .t-col.last { overflow-y: auto; }
+  .t-col + .t-col { border-left: 1px solid #ddd; }
+  .it { white-space: nowrap; overflow: hidden; color: #000; }
+  .it.main { font: bold var(--mainf)/var(--mainl) Arial; }
+  .it.sub { font: bold var(--subf)/var(--subl) Arial; color: #222; padding-left: 1.6em; }
+  .it.mod { font: bold var(--subf)/var(--subl) Arial; color: #333; padding-left: 1.6em; }
+  .it.note { font: bold var(--subf)/var(--subl) Arial; color: #c92a2a; padding-left: 1.6em; }
+  .t-note { flex: none; background: #ffe066; color: #000; font: bold var(--subf) Arial; padding: 3px 8px; border-bottom: 2px solid #c9a400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .it.promo { font: italic var(--subf)/var(--subl) Arial; color: #8a6d00; padding-left: 1.6em; }
+  .it.sep { border-top: 3px solid #5b6180; margin: 2px 0 2px -4px; height: 0; }
+  .t-ft { display: flex; align-items: center; height: var(--ft); padding: 0 4px; font: bold var(--ftf) Arial; color: #fff; background: #5b6180;
+    text-shadow: 0 1px 1px #000; white-space: nowrap; }
+  .t-ft span { flex: 1; }
+  .t-ft .c { text-align: center; }
+  .t-ft .r { text-align: right; }
+  .ticket.warn .t-ft { background: #d8a200; }
+  .ticket.late .t-ft { background: #b94a48; }
+  .ticket.unpaid .t-ft .l { color: #ffe066; }
+  /* still being rung in at the register: blue footer, updates live */
+  .ticket.live .t-ft { background: #3a6ea5; }
+  .ticket.live .t-ft .l { animation: kvs-pulse 1.6s ease-in-out infinite; }
+  @keyframes kvs-pulse { 50% { opacity: .45; } }
+
+  /* Bump-bar buttons and status line */
+  #bar { display: flex; gap: 10px; padding: 6px 8px 2px; flex: none; }
+  #bar button { flex: 1; font: bold 16px Arial; color: #fff; background: #000; border: 2px solid #fff; padding: 2px 0; cursor: pointer; }
+  #bar button:active, #bar button.on { background: #fff; color: #000; }
+  #status { display: flex; align-items: center; gap: 16px; padding: 4px 8px 6px; font: bold 15px Arial; flex: none; white-space: nowrap; overflow: hidden; }
+  #clock { background: #8a8a8a; color: #111; font: bold 26px Arial; padding: 0 4px; line-height: 30px; }
+  #stat { background: #e0281c; color: #fff; padding: 3px 6px; font: bold 14px "Courier New", monospace; }
+  #status .on { color: #3fbf3f; }
+
+  #signin { position: fixed; inset: 0; background: rgba(0,0,0,.9); display: flex; align-items: center; justify-content: center; }
+  #signin form { background: #fff; color: #111; border: 3px solid #7fe07f; display: flex; flex-direction: column; gap: 10px; min-width: 300px; }
+  #signin h2 { margin: 0; background: #5b6180; color: #fff; font: bold 18px Arial; padding: 8px 12px; }
+  #signin form > :not(h2) { margin: 0 14px; }
+  #signin input { font: bold 24px monospace; padding: 8px; text-align: center; -webkit-text-security: disc; border: 2px inset #aaa; }
+  #signin button { font: bold 16px Arial; color: #fff; background: #000; border: 2px solid #000; padding: 8px; margin-bottom: 14px !important; cursor: pointer; }
+  #signin[hidden] { display: none; }
+  #signin .err { color: #c00; min-height: 1em; font-size: 13px; }
+
+  @media print {
+    body > :not(#area) { display: none !important; }
+    #area { overflow: visible; }
+    .ticket:not(.print) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="title">
+  <img src="assets/logo.png" alt="">
+  <span class="name" id="name">FC - KVS</span>
+  <select id="filter" title="Show orders from">
+    <option value="all">All PODs</option><option value="Front Counter">Front Counter</option><option value="Drive Thru">Drive Thru</option>
+  </select>
+  <button id="clear" title="Manager: clear every order">Clear all</button>
+</div>
+<div id="area"><div id="tickets"></div></div>
+<div id="bar">
+  <button data-a="serve">serve</button><button data-a="next">next</button><button data-a="recall">recall</button>
+  <button data-a="zoom">zoom</button><button data-a="print">print</button><button data-a="held">held</button>
+  <button data-a="heldscroll">heldscroll</button><button data-a="serveHeld">serveHeld</button>
+</div>
+<div id="status">
+  <span id="clock"></span><span id="stat"></span>
+  <span>Standard/<span id="podName">ALL</span> <span class="on">ON</span></span>
+  <span>Touch <span class="on">ON</span></span>
+  <span id="heldPos">0/0</span>
+  <span id="mode" style="color:#777;font-weight:normal;font-size:12px"></span>
+</div>
+<div id="signin" hidden><form><h2>KVS sign-in</h2><div>Enter your crew ID</div>
+  <input name="id" inputmode="numeric" autocomplete="off" maxlength="8" required><div class="err"></div>
+  <button type="submit">Sign in</button></form></div>
+<script src="js/db.js"></script>
+<script src="js/reload.js"></script>
+<script>
+(function () {
+  'use strict';
+  var docs = {};
+  var selUid = null;          // ticket the bump-bar buttons act on (green outline)
+  var heldView = false;       // heldscroll: show held tickets instead of live ones
+  var heldIdx = 0;
+  var zoom = false;
+  try { zoom = localStorage.getItem('np6sim.kvsZoom') === '1'; } catch (e) {}
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function mmss(ms) { var s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function pad2(n) { return ('0' + n).slice(-2); }
+
+  var filter = $('filter');
+  try { filter.value = localStorage.getItem('np6sim.kvsFilter') || 'all'; } catch (e) {}
+  filter.addEventListener('change', function () { try { localStorage.setItem('np6sim.kvsFilter', filter.value); } catch (e) {} draw(true); });
+
+  function list(held) {
+    return Object.keys(docs).map(function (k) { return docs[k]; })
+      .filter(function (o) { return !o.bumped && !!o.held === !!held && (filter.value === 'all' || o.pod === filter.value); })
+      .sort(function (a, b) { return a.sentAt - b.sentAt; });
+  }
+  function shown() {
+    if (!heldView) return list(false);
+    var h = list(true);
+    heldIdx = Math.min(heldIdx, Math.max(0, h.length - 1));
+    return h.slice(heldIdx, heldIdx + 1);
+  }
+
+  // ---- sizes: 4 ticket columns across the screen (3 when zoomed), 2 rows of tickets per screen
+  var M = {};
+  function measure() {
+    var area = $('area');
+    var cols = zoom ? 3 : 4;
+    var w = area.clientWidth - 8, h = area.clientHeight - 8;
+    var k = zoom ? 1.25 : 1;
+    M.cols = cols;
+    M.colW = Math.floor((w - 4 * (cols - 1)) / cols);
+    M.rowH = Math.max(220, Math.floor((h - 4) / 2));
+    M.hd = Math.round(34 * k); M.ft = Math.round(30 * k);
+    M.mainF = Math.round(24 * k); M.mainL = Math.round(32 * k);
+    M.subF = Math.round(19 * k); M.subL = Math.round(25 * k);
+    M.body = M.rowH - M.hd - M.ft - 6 - 8;
+    var st = document.documentElement.style;
+    st.setProperty('--colw', M.colW + 'px');
+    st.setProperty('--hd', M.hd + 'px'); st.setProperty('--hdf', Math.round(22 * k) + 'px');
+    st.setProperty('--ft', M.ft + 'px'); st.setProperty('--ftf', Math.round(20 * k) + 'px');
+    st.setProperty('--mainf', M.mainF + 'px'); st.setProperty('--mainl', M.mainL + 'px');
+    st.setProperty('--subf', M.subF + 'px'); st.setProperty('--subl', M.subL + 'px');
+    M.sig = [M.cols, M.colW, M.rowH].join(',');
+  }
+
+  // Items fill a column top to bottom, then carry on in the next column, like the real screen.
+  // A ticket grows up to the full screen width; anything past that scrolls in its last column.
+  function columns(o) {
+    var rows = [];
+    o.lines.forEach(function (l, i) {
+      if (l.main && i > 0) rows.push({ sep: true, h: 7 });
+      var t = l.note ? String(l.t) : String(l.t).replace(/^\*/, '');   // kitchen comments keep their ** marker
+      rows.push({ t: t, cls: l.main ? 'main' : l.note ? 'note' : l.mod ? 'mod' : l.promo ? 'promo' : 'sub', h: l.main ? M.mainL : M.subL });
+    });
+    var cols = [[]], used = 0, room = M.body - (o.note ? M.subL + 8 : 0);   // an order note bar takes a line
+    rows.forEach(function (r) {
+      if (used + r.h > room && cols[cols.length - 1].length && cols.length < M.cols) {
+        if (r.sep) return;  // no divider at the top of a column
+        cols.push([]); used = 0;
+      }
+      cols[cols.length - 1].push(r); used += r.h;
+    });
+    return cols;
+  }
+
+  // Tickets are kept between redraws and only rebuilt when their order changes, so scrolling isn't reset.
+  var tickets = {};
+  var HOLD_MS = 30000;
+  var holdUntil = 0;
+  function build(o, t) {
+    var cols = columns(o);
+    var dine = o.dine === 'EAT IN' ? 'Tray' : o.dine ? 'Bag' : '';
+    var left = o.pod === 'Drive Thru' ? 'DT' + (o.car ? ' Car ' + o.car : '') : o.table ? 'Table ' + o.table : 'Side ' + (o.pos || '');
+    var top = t.el.querySelector('.t-col.last');
+    var keep = top ? top.scrollTop : 0;
+    t.el.style.width = (cols.length * M.colW + 4 * (cols.length - 1)) + 'px';
+    t.el.style.height = M.rowH + 'px';
+    t.el.innerHTML =
+      '<div class="t-hd"><span>' + esc(left) + '</span><span class="c">' + dine + '</span><span class="r">R' + pad2(o.pos || 0) + '-<b class="seq"></b></span></div>' +
+      (o.note ? '<div class="t-note">NOTE: ' + esc(String(o.note).toUpperCase()) + '</div>' : '') +
+      '<div class="t-body">' + cols.map(function (c, i) {
+        return '<div class="t-col' + (i === cols.length - 1 ? ' last' : '') + '">' + c.map(function (r) {
+          return r.sep ? '<div class="it sep"></div>' : '<div class="it ' + r.cls + '">' + esc(r.t) + '</div>';
+        }).join('') + '</div>';
+      }).join('') + '</div>' +
+      '<div class="t-ft"><span class="l">' + (o.live ? 'ORDERING…' : o.paid ? 'Paid' : 'Not Paid') + (o.mymcd ? ' · MyMcD' : '') + '</span><span class="c age"></span><span class="r">' + esc(o.number) + '</span></div>';
+    var last = t.el.querySelector('.t-col.last');
+    if (last) last.scrollTop = keep;
+  }
+  function draw(force) {
+    measure();
+    var items = shown();
+    var box = $('tickets');
+    if (!items.some(function (o) { return o.uid === selUid; })) selUid = items.length ? items[0].uid : null;
+    var empty = box.querySelector('.empty');
+    if (!items.length) {
+      Object.keys(tickets).forEach(function (k) { tickets[k].el.remove(); delete tickets[k]; });
+      if (!empty) box.innerHTML = '<div class="empty">' + (heldView ? 'No held orders' : 'No orders') + '</div>';
+    } else {
+      if (empty) empty.remove();
+      var keep = {};
+      items.forEach(function (o, i) {
+        var t = tickets[o.uid];
+        if (!t) {
+          var el = document.createElement('div');
+          el.className = 'ticket';
+          el.setAttribute('data-uid', o.uid);
+          t = tickets[o.uid] = { el: el, sig: '' };
+        }
+        keep[o.uid] = 1;
+        var sig = JSON.stringify([o.number, o.car, o.table, o.pos, o.dine, o.pod, o.paid, o.live, o.mymcd, o.note, o.lines, M.sig]);
+        if (force || t.sig !== sig) { build(o, t); t.sig = sig; }
+        var age = Date.now() - o.sentAt;
+        t.el.classList.toggle('late', age > 240000);
+        t.el.classList.toggle('warn', age > 120000 && age <= 240000);
+        t.el.classList.toggle('unpaid', !o.paid && !o.live);
+        t.el.classList.toggle('live', !!o.live);
+        t.el.classList.toggle('sel', o.uid === selUid);
+        t.el.classList.toggle('held', !!o.held);
+        t.el.querySelector('.age').textContent = mmss(age);
+        t.el.querySelector('.seq').textContent = pad2(i + 1);
+        if (box.children[i] !== t.el) box.insertBefore(t.el, box.children[i] || null);  // oldest first
+      });
+      Object.keys(tickets).forEach(function (k) { if (!keep[k]) { tickets[k].el.remove(); delete tickets[k]; } });
+    }
+    status();
+  }
+  function status() {
+    var live = list(false), held = list(true), fries = 0, late = 0;
+    live.forEach(function (o) {
+      if (Date.now() - o.sentAt > 240000) late++;
+      o.lines.forEach(function (l) { if (/Fries/i.test(l.t)) { var q = parseInt(l.t, 10); fries += isNaN(q) ? 1 : q; } });
+    });
+    $('clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    $('stat').textContent = 'H|' + held.length + ' Fry: ' + fries + ' | ' + live.length + ' ACT | ' + late + ' LATE |';
+    $('podName').textContent = filter.value === 'all' ? 'ALL' : filter.value === 'Drive Thru' ? 'DT' : 'FC';
+    $('name').textContent = (filter.value === 'Drive Thru' ? 'DT' : filter.value === 'all' ? 'ALL' : 'FC') + ' - KVS' + (heldView ? '  (HELD)' : '');
+    document.title = $('name').textContent;
+    $('heldPos').textContent = (held.length ? (heldView ? heldIdx + 1 : 0) : 0) + '/' + held.length;
+    document.querySelector('[data-a="zoom"]').classList.toggle('on', zoom);
+    document.querySelector('[data-a="heldscroll"]').classList.toggle('on', heldView);
+  }
+
+  // ---- auto-scroll the ticket area; a manual scroll leaves it where it was put for HOLD_MS
+  var area = $('area'), pauseUntil = 0, atBottom = false, downTop = 0;
+  function hold() { holdUntil = Date.now() + HOLD_MS; }
+  area.addEventListener('wheel', hold, { passive: true });
+  area.addEventListener('touchstart', hold, { passive: true });
+  area.addEventListener('pointerdown', function () { downTop = area.scrollTop; hold(); });
+  setInterval(function () {
+    var now = Date.now(), room = area.scrollHeight - area.clientHeight;
+    if (room <= 2 || holdUntil > now || pauseUntil > now) return;
+    if (area.scrollTop >= room - 1) {
+      if (atBottom) { area.scrollTop = 0; atBottom = false; }
+      else atBottom = true;
+      pauseUntil = now + 3000;
+    } else { atBottom = false; area.scrollTop = Math.min(room, area.scrollTop + 1); }
+  }, 60);
+
+  // ---- actions
+  function save(o) { return NP6DB.put('kvs', o.uid, o); }
+  function bump(uid) {
+    var o = docs[uid]; if (!o) return;
+    o.bumped = true; o.bumpedAt = Date.now(); delete o.held;
+    draw();
+    save(o);
+  }
+  function select(uid) {
+    selUid = uid; draw();
+    var t = tickets[uid];
+    if (t) t.el.scrollIntoView({ block: 'nearest' });
+  }
+  var actions = {
+    serve: function () { if (selUid) bump(selUid); },
+    next: function () {
+      var items = shown(); if (!items.length) return;
+      var i = items.map(function (o) { return o.uid; }).indexOf(selUid);
+      select(items[(i + 1) % items.length].uid);
+    },
+    recall: function () {
+      var last = Object.keys(docs).map(function (k) { return docs[k]; }).filter(function (o) { return o.bumped; })
+        .sort(function (a, b) { return (b.bumpedAt || 0) - (a.bumpedAt || 0); })[0];
+      if (last) { last.bumped = false; selUid = last.uid; save(last).then(load); }
+    },
+    zoom: function () { zoom = !zoom; try { localStorage.setItem('np6sim.kvsZoom', zoom ? '1' : '0'); } catch (e) {} draw(true); },
+    print: function () {
+      var t = selUid && tickets[selUid]; if (!t) return;
+      t.el.classList.add('print'); window.print(); t.el.classList.remove('print');
+    },
+    // held: park the selected order off the live screen (or bring a held one back)
+    held: function () {
+      var o = selUid && docs[selUid]; if (!o) return;
+      o.held = !o.held;
+      if (!o.held && heldView && list(true).length <= 1) heldView = false;
+      draw(); save(o);
+    },
+    heldscroll: function () {
+      var h = list(true);
+      if (!heldView) { if (!h.length) return; heldView = true; heldIdx = 0; }
+      else if (heldIdx + 1 < h.length) heldIdx++;
+      else heldView = false;
+      selUid = null; draw();
+    },
+    serveHeld: function () {
+      var h = list(true); if (!h.length) return;
+      bump(h[heldView ? heldIdx : 0].uid);
+      if (heldView && !list(true).length) { heldView = false; draw(); }
+    }
+  };
+  $('bar').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (b && actions[b.getAttribute('data-a')]) actions[b.getAttribute('data-a')]();
+  });
+  // Touch a ticket to bump it (touch mode, like the kitchen screens). A drag that scrolled isn't a touch.
+  $('tickets').addEventListener('click', function (e) {
+    var c = e.target.closest('.ticket'); if (!c) return;
+    if (Math.abs(area.scrollTop - downTop) > 3) return;
+    var col = e.target.closest('.t-col.last');
+    if (col && col.scrollHeight > col.clientHeight && e.offsetX > col.clientWidth) return;  // its scrollbar
+    bump(c.getAttribute('data-uid'));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT') return;
+    var n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 9) { var o = shown()[n - 1]; if (o) bump(o.uid); return; }
+    var map = { Enter: 'serve', ' ': 'serve', ArrowRight: 'next', Tab: 'next', r: 'recall', z: 'zoom', p: 'print', h: 'held' };
+    if (map[e.key]) { e.preventDefault(); actions[map[e.key]](); }
+  });
+  $('clear').addEventListener('click', function () {
+    if (confirm('Clear every order from the KVS?')) NP6DB.clear('kvs').then(load).catch(function (e) { alert(e.message); });
+  });
+
+  var signin = $('signin');
+  function load() {
+    return NP6DB.col('kvs').then(function (d) { signin.hidden = true; docs = d || {}; draw(); })
+      .catch(function (e) { if (e.status === 401) signin.hidden = false; });
+  }
+  signin.querySelector('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target, err = f.querySelector('.err');
+    NP6DB.login(f.elements.id.value.trim(), 0, 'KVS').then(function () { f.reset(); err.textContent = ''; load(); })
+      .catch(function (x) { err.textContent = x.message; });
+  });
+  var rt;
+  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { draw(true); }, 150); });
+  NP6DB.watch('kvs', load, 1500);
+  NP6DB.ready.then(function (on) { $('mode').textContent = on ? '' : 'Browser-only mode'; });
+  setInterval(function () { draw(); }, 1000);
+  draw();
+  load();
+})();
+</script>
+</body>
+</html>

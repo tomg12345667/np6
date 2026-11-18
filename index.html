@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>NP6 Register Simulator</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="apple-touch-icon" href="assets/logo.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="NP6 POS">
+<link rel="stylesheet" href="css/np6.css">
+</head>
+<body>
+<div id="stage">
+  <!-- Left: order display -->
+  <div id="orderPanel">
+    <div class="op-head"><span id="opDine"></span><span id="opSide"></span><span id="opOrder"></span><span class="op-x"></span></div>
+    <div id="orderList"></div>
+    <div class="op-foot"><button id="lastSale" type="button">Click here to show last sale</button><button id="opUp" type="button" title="Scroll up">&#8679;</button></div>
+  </div>
+
+  <!-- Top: register header -->
+  <div id="header">
+    <div id="userIcon" title="Manager menu"><img src="assets/UserLogged.png" alt="User Logged"></div>
+    <div class="hf c" id="hTimer" style="left:92px;top:6px;width:58px"></div>
+    <div class="hf white" id="hQty" style="left:156px;top:6px;width:44px"></div>
+    <div class="hf c big" id="hUser" style="left:206px;top:6px;width:248px"></div>
+    <div class="hf c" id="hClock" style="left:460px;top:6px;width:154px"></div>
+    <div class="hf" id="hScreen" style="left:92px;top:32px;width:104px"></div>
+    <div class="hf c" id="hPos" style="left:202px;top:32px;width:96px"></div>
+    <div class="hf c" id="hPod" style="left:304px;top:32px;width:96px"></div>
+    <div class="hf c" id="hStored" style="left:406px;top:32px;width:100px"></div>
+    <div class="hf c" id="hState" style="left:512px;top:32px;width:102px"></div>
+    <div class="hf msg" id="hMsg" style="left:92px;top:58px;width:450px"></div>
+    <div class="hf c" id="dbStatus" style="left:548px;top:58px;width:66px">Local</div>
+    <div id="hTotal" title="Total"></div>
+  </div>
+
+  <!-- Main: button screens -->
+  <div id="main" class="sunken">
+    <div id="grid"></div>
+    <div id="float" hidden></div>
+    <div id="overlay" hidden></div>
+  </div>
+
+  <div id="modal" hidden></div>
+
+</div>
+
+<pre id="printArea"></pre>
+<input type="file" id="posdataInput" webkitdirectory directory multiple hidden>
+
+<script src="js/db.js"></script>
+<script src="js/demo-data.js"></script>
+<script src="js/posdata.js"></script>
+<script src="js/app.js"></script>
+<script src="js/reload.js"></script>
+</body>
+</html>

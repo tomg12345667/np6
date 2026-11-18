@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MyMcDonald's">
+<meta name="theme-color" content="#db0007">
+<link rel="icon" href="assets/logo.png">
+<link rel="apple-touch-icon" href="assets/logo.png">
+<title>Join MyMcDonald's Rewards</title>
+<style>
+  /* Public sign-up for the simulator's MyMcDonald's Rewards: enter a name, get a random 4-digit code.
+     Points start at 0 and are only earned by paying for orders; nothing here can change them. */
+  :root { --yellow: #ffbc0d; --yellow-dk: #e5a400; --red: #db0007; --ink: #292929; --muted: #6f6f6f; --line: #e6e6e6; --panel: #f6f6f6; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body { font-family: "Speedee", "Helvetica Neue", Helvetica, Arial, sans-serif; background: var(--panel); color: var(--ink);
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
+  button, input { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--red); color: #fff; border-bottom: 4px solid var(--yellow); }
+  header img { height: 34px; }
+  header b { font-size: 19px; }
+  main { max-width: 520px; margin: 0 auto; padding: 22px 18px 40px; }
+  h1 { font-size: clamp(26px, 6vw, 34px); margin: 4px 0 6px; letter-spacing: -.5px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 16px; line-height: 1.4; }
+  .panel { background: #fff; border-radius: 14px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+  label { display: block; font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+  input { width: 100%; font-size: 20px; padding: 14px 16px; border: 2px solid var(--line); border-radius: 10px; background: #fff; }
+  input:focus { outline: none; border-color: var(--yellow); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; margin-top: 16px; border: 0; border-radius: 8px;
+    background: var(--yellow); font-weight: 700; font-size: 19px; cursor: pointer; }
+  .btn:active { background: var(--yellow-dk); }
+  .btn.line { background: #fff; box-shadow: inset 0 0 0 2px var(--ink); }
+  .btn[disabled] { opacity: .5; pointer-events: none; }
+  .err { color: var(--red); font-weight: 700; margin-top: 12px; min-height: 1.2em; }
+  .perks { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 10px; }
+  .perks li { display: flex; gap: 12px; align-items: center; font-size: 15px; }
+  .perks span { font-size: 24px; width: 36px; text-align: center; }
+
+  /* the digital card */
+  .card { position: relative; overflow: hidden; border-radius: 18px; padding: 22px 22px 20px; color: #fff; background: linear-gradient(135deg, #db0007, #a30005);
+    box-shadow: 0 10px 26px rgba(0,0,0,.22); }
+  .card::after { content: ''; position: absolute; right: -40px; top: -40px; width: 180px; height: 180px; border-radius: 50%; background: rgba(255,188,13,.18); }
+  .card .top { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .card .top img { width: 34px; }
+  .card .name { font-size: 26px; font-weight: 800; margin: 18px 0 2px; }
+  .card .lbl { font-size: 13px; letter-spacing: 2px; opacity: .85; margin-top: 16px; }
+  .card .code { display: flex; gap: 8px; margin-top: 6px; }
+  .card .code span { width: 58px; height: 72px; border-radius: 10px; background: #fff; color: var(--ink); display: flex; align-items: center; justify-content: center; font-size: 42px; font-weight: 800; }
+  .card .pts { margin-top: 16px; font-size: 15px; }
+  .card .pts b { font-size: 24px; color: var(--yellow); }
+  .how { margin-top: 18px; display: grid; gap: 10px; }
+  .how div { background: #fff; border-radius: 12px; padding: 12px 14px; font-size: 15px; display: flex; gap: 12px; align-items: center; }
+  .how b { color: var(--red); font-size: 20px; }
+  .mine { margin-top: 26px; }
+  .mine h2 { font-size: 18px; margin: 0 0 10px; }
+  .mine button { display: flex; justify-content: space-between; width: 100%; padding: 14px 16px; margin-bottom: 8px; border: 0; border-radius: 10px; background: #fff; cursor: pointer; font-size: 16px; }
+  .mine button b { letter-spacing: 3px; }
+  .small { color: var(--muted); font-size: 13px; text-align: center; margin-top: 22px; }
+  .link { background: none; border: 0; text-decoration: underline; font-weight: 700; cursor: pointer; padding: 0; }
+</style>
+</head>
+<body>
+<header><img src="assets/logo.png" alt=""><b>MyMcDonald’s Rewards</b></header>
+<main>
+  <section id="joinView">
+    <h1>Join MyMcDonald’s Rewards</h1>
+    <p class="sub">Get your own 4-digit code. Use it at the kiosk or give it to the cashier to earn points and use deals and rewards.</p>
+    <form class="panel" id="form">
+      <label for="name">Your name</label>
+      <input id="name" maxlength="30" autocomplete="given-name" placeholder="First name" required>
+      <button class="btn" id="joinBtn" type="submit">Get My Code</button>
+      <div class="err" id="err"></div>
+      <ul class="perks">
+        <li><span>⭐</span>Earn 100 points for every $1 you spend</li>
+        <li><span>🍟</span>Swap points for free food with Rewards</li>
+        <li><span>🎟️</span>Use one deal or reward on each order</li>
+      </ul>
+    </form>
+  </section>
+
+  <section id="cardView" hidden>
+    <h1 id="cardTitle">You’re in!</h1>
+    <p class="sub">Save this code. You’ll need it at the kiosk or the counter.</p>
+    <div class="card">
+      <div class="top"><img src="assets/logo.png" alt="">MyMcDonald’s Rewards</div>
+      <div class="name" id="cName"></div>
+      <div class="lbl">YOUR CODE</div>
+      <div class="code" id="cCode"></div>
+      <div class="pts"><b id="cPts">0</b> points</div>
+    </div>
+    <div class="how">
+      <div><b>1</b>At the kiosk, enter this code when it asks “Do you have a MyMcDonald’s code?”</div>
+      <div><b>2</b>At the counter, tell the cashier your code before you pay</div>
+      <div><b>3</b>Points are added when you pay for your order</div>
+    </div>
+    <button class="btn line" id="refresh">Check My Points</button>
+    <button class="btn" id="another">Make Another Card</button>
+  </section>
+
+  <section class="mine" id="mine" hidden>
+    <h2>Cards on this device</h2>
+    <div id="mineList"></div>
+  </section>
+
+  <p class="small">NP6 Training Simulator · codes are for this training restaurant only.</p>
+</main>
+<script src="js/reload.js"></script>
+<script>
+(function () {
+  'use strict';
+  var KEY = 'np6sim.myCards';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function saved() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+  function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-10))); } catch (e) {} }
+  function post(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.'); return j; }); });
+  }
+
+  function showCard(c, fresh) {
+    $('cardTitle').textContent = fresh ? 'You’re in, ' + c.name + '!' : 'Your card';
+    $('cName').textContent = c.name;
+    $('cCode').innerHTML = String(c.code).split('').map(function (d) { return '<span>' + esc(d) + '</span>'; }).join('');
+    $('cPts').textContent = (c.points || 0).toLocaleString();
+    $('joinView').hidden = true;
+    $('cardView').hidden = false;
+    $('cardView').setAttribute('data-code', c.code);
+    renderMine();
+    window.scrollTo(0, 0);
+  }
+  function renderMine() {
+    var list = saved(), cur = $('cardView').hidden ? null : $('cardView').getAttribute('data-code');
+    var others = list.filter(function (c) { return c.code !== cur; });
+    $('mine').hidden = !others.length;
+    $('mineList').innerHTML = others.map(function (c) {
+      return '<button data-code="' + esc(c.code) + '"><span>' + esc(c.name) + '</span><b>' + esc(c.code) + '</b></button>';
+    }).join('');
+  }
+  // Points come from the restaurant's records (read-only); this page can't change them
+  function refresh(code) {
+    return post('/api/kiosk/member', { code: code }).then(function (m) {
+      var list = saved().map(function (c) { return c.code === code ? Object.assign(c, { points: m.points }) : c; });
+      save(list);
+      $('cPts').textContent = m.points.toLocaleString();
+    });
+  }
+
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var name = $('name').value.trim();
+    if (name.length < 2) { $('err').textContent = 'Please enter your name.'; return; }
+    if (location.protocol.indexOf('http') !== 0) { $('err').textContent = 'This page needs the simulator server running.'; return; }
+    $('joinBtn').disabled = true; $('joinBtn').textContent = 'Making your card…'; $('err').textContent = '';
+    post('/api/join', { name: name }).then(function (c) {
+      var list = saved(); list.push({ code: c.code, name: c.name, points: c.points });
+      save(list);
+      $('name').value = '';
+      showCard(c, true);
+    }).catch(function (x) { $('err').textContent = x.message; })
+      .then(function () { $('joinBtn').disabled = false; $('joinBtn').textContent = 'Get My Code'; });
+  });
+  $('refresh').addEventListener('click', function () {
+    var b = this, code = $('cardView').getAttribute('data-code');
+    b.disabled = true; b.textContent = 'Checking…';
+    refresh(code).catch(function (x) { alert(x.message); }).then(function () { b.disabled = false; b.textContent = 'Check My Points'; });
+  });
+  $('another').addEventListener('click', function () {
+    $('cardView').hidden = true; $('joinView').hidden = false; renderMine(); $('name').focus();
+  });
+  $('mineList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-code]'); if (!b) return;
+    var c = saved().filter(function (x) { return x.code === b.getAttribute('data-code'); })[0];
+    if (c) { showCard(c, false); refresh(c.code).catch(function () {}); }
+  });
+
+  // Coming back: show the newest card straight away
+  var list = saved();
+  if (list.length) { showCard(list[list.length - 1], false); refresh(list[list.length - 1].code).catch(function () {}); }
+  else renderMine();
+})();
+</script>
+</body>
+</html>
